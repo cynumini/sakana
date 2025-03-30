@@ -132,6 +132,7 @@ const Key = enum(i32) {
 };
 
 pub fn init() !void {
+    c.glfwInitHint(c.GLFW_PLATFORM, c.GLFW_PLATFORM_X11);
     if (c.glfwInit() != c.GLFW_TRUE) return error.GLFWInitError;
 }
 

@@ -6,6 +6,8 @@ const std = @import("std");
 
 const glfw = @import("glfw.zig");
 
+pub const Matrix4f = @import("math.zig").Matrix4f;
+
 const GLint = i32;
 const GLsizei = i32;
 const GLuint = u32;
@@ -79,6 +81,9 @@ pub const Uniform = struct {
 
     pub fn set1f(self: Self, v0: GLfloat) void {
         c.glUniform1f(self.id, v0);
+    }
+    pub fn setMatrix4f(self: Self, matrix: []const [4]f32) void {
+        c.glUniformMatrix4fv(self.id, 1, c.GL_FALSE, @ptrCast(matrix.ptr));
     }
 };
 
