@@ -223,17 +223,9 @@ pub fn polygonMode(mode: PolygonMode) void {
     c.glPolygonMode(c.GL_FRONT_AND_BACK, @intFromEnum(mode));
 }
 
-pub fn clearColor(red: GLfloat, green: GLfloat, blue: GLfloat, alpha: GLfloat) void {
-    c.glClearColor(red, green, blue, alpha);
-}
-
 pub const depth_buffer_bit = c.GL_DEPTH_BUFFER_BIT;
 pub const stencil_buffer_bit = c.GL_STENCIL_BUFFER_BIT;
 pub const color_buffer_bit = c.GL_COLOR_BUFFER_BIT;
-
-pub fn clear(mask: GLbitfield) void {
-    c.glClear(mask);
-}
 
 const DrawMode = enum(GLenum) {
     points = c.GL_POINTS,

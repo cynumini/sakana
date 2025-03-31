@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const gl = @import("gl.zig");
+const cgl = gl.c;
 const glfw = @import("glfw.zig");
 const stb = @import("stb.zig");
 const Shader = @import("shader.zig");
@@ -69,11 +70,11 @@ pub fn deinit(self: *Self) void {
 
 pub fn setClearColor(color: Color) void {
     const normalized = color.normalize();
-    gl.clearColor(normalized[0], normalized[1], normalized[2], normalized[3]);
+    cgl.glClearColor(normalized[0], normalized[1], normalized[2], normalized[3]);
 }
 
 pub fn clear() void {
-    gl.clear(gl.color_buffer_bit | gl.depth_buffer_bit);
+    cgl.glClear(cgl.GL_COLOR_BUFFER_BIT);
 }
 
 pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) void {
