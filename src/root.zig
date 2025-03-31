@@ -21,12 +21,25 @@ var shader: Shader = undefined;
 
 window: glfw.Window,
 
-pub fn init(allocator: std.mem.Allocator, size: Vector2, title: []const u8) !Self {
+pub const Config = struct {
+    title: []const u8 = "sakana",
+    size: Vector2 = .{ 1280, 720 },
+    clear_color: Color = Color.white,
+};
+
+pub fn init(
+    allocator: std.mem.Allocator,
+    config: Config,
+) !Self {
     const error_writer = std.io.getStdErr().writer();
 
     try glfw.init();
     glfw.setupOpenGL(3, 3, .core_profile);
-    const window = try glfw.Window.init(@intFromFloat(size[0]), @intFromFloat(size[1]), title);
+    const window = try glfw.Window.init(
+        @intFromFloat(config.size[0]),
+        @intFromFloat(config.size[1]),
+        config.title,
+    );
     window.makeContextCurrent();
 
     try gl.init();
@@ -35,10 +48,12 @@ pub fn init(allocator: std.mem.Allocator, size: Vector2, title: []const u8) !Sel
     VBO = gl.Buffer.init(.array);
     EBO = gl.Buffer.init(.element_array);
 
-    projection = Matrix.ortho(0, size[0], size[1], 0, -1, 1);
+    projection = Matrix.ortho(0, config.size[0], config.size[1], 0, -1, 1);
     shader = try Shader.init(allocator, error_writer, "basic.vert", "basic.frag");
     shader.use();
     shader.setUniform(4, Matrix, "projection", projection);
+
+    setClearColor(config.clear_color);
 
     return .{ .window = window };
 }
@@ -52,9 +67,13 @@ pub fn deinit(self: *Self) void {
     defer EBO.deinit();
 }
 
-pub fn clearColor(color: Color) void {
-    gl.clearColor(color.r, color.g, color.b, color.a);
-    gl.clear(gl.color_buffer_bit);
+pub fn setClearColor(color: Color) void {
+    const normalized = color.normalize();
+    gl.clearColor(normalized[0], normalized[1], normalized[2], normalized[3]);
+}
+
+pub fn clear() void {
+    gl.clear(gl.color_buffer_bit | gl.depth_buffer_bit);
 }
 
 pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) void {
