@@ -1,7 +1,7 @@
 const std = @import("std");
 const gl = @import("gl.zig");
 
-pub const Matrix4f = @import("math.zig").Matrix4f;
+pub const Matrix = @import("math.zig").Matrix;
 
 program: gl.ShaderProgram,
 const Self = @This();
@@ -52,15 +52,9 @@ pub fn setUniform(self: Self, len: comptime_int, T: type, name: []const u8, valu
     }
     if (len == 4) {
         switch (T) {
-            Matrix4f => {
-                const data: [4][4]f32 = .{
-                    .{ value.data[0][0], value.data[1][0], value.data[2][0], value.data[3][0] },
-                    .{ value.data[0][1], value.data[1][1], value.data[2][1], value.data[3][1] },
-                    .{ value.data[0][2], value.data[1][2], value.data[2][2], value.data[3][2] },
-                    .{ value.data[0][3], value.data[1][3], value.data[2][3], value.data[3][3] },
-                };
+            Matrix => {
                 {
-                    self.program.getUniform(name).setMatrix4f(&data);
+                    self.program.getUniform(name).setMatrix4f(value);
                 }
             },
             else => unreachable,

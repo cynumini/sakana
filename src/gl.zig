@@ -2,6 +2,8 @@ pub const c = @cImport({
     @cInclude("glad/glad.h");
 });
 
+pub const Matrix = @import("math.zig").Matrix;
+
 const std = @import("std");
 
 const glfw = @import("glfw.zig");
@@ -82,8 +84,8 @@ pub const Uniform = struct {
     pub fn set1f(self: Self, v0: GLfloat) void {
         c.glUniform1f(self.id, v0);
     }
-    pub fn setMatrix4f(self: Self, matrix: []const [4]f32) void {
-        c.glUniformMatrix4fv(self.id, 1, c.GL_FALSE, @ptrCast(matrix.ptr));
+    pub fn setMatrix4f(self: Self, matrix: Matrix) void {
+        c.glUniformMatrix4fv(self.id, 1, c.GL_FALSE, @ptrCast(&matrix.toFloat()));
     }
 };
 

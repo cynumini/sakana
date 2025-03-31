@@ -1,16 +1,16 @@
 const std = @import("std");
-// pub const Vector2 = struct {
-//     x: f32,
-//     y: f32,
-// };
 
-pub const Matrix4f = struct {
+pub const Vector2 = @Vector(2, f32);
+pub const Vector3 = @Vector(3, f32);
+pub const Vector4 = @Vector(4, f32);
+
+pub const Matrix = struct {
     const Self = @This();
 
-    data: [4]@Vector(4, f32),
+    items: [4]Vector4,
 
-    pub fn intIdentity() Self {
-        return .{ .data = .{
+    pub fn identity() Self {
+        return .{ .items = .{
             .{ 1, 0, 0, 0 },
             .{ 0, 1, 0, 0 },
             .{ 0, 0, 1, 0 },
@@ -18,63 +18,88 @@ pub const Matrix4f = struct {
         } };
     }
 
-    pub fn initScale(scale: @Vector(3, f32)) Self {
-        return .{ .data = .{
-            .{ scale[0], 0, 0, 0 },
-            .{ 0, scale[1], 0, 0 },
-            .{ 0, 0, scale[2], 0 },
+    pub fn scale(len: comptime_int, vector: @Vector(len, f32)) Self {
+        var matrix = comptime Self.identity();
+
+        for (0..len) |i| {
+            matrix.items[i][i] = vector[i];
+        }
+
+        return matrix;
+    }
+
+    pub fn translate(len: comptime_int, vector: @Vector(len, f32)) Self {
+        var matrix = comptime Self.identity();
+
+        for (0..len) |i| {
+            matrix.items[i][3] = vector[i];
+        }
+
+        return matrix;
+    }
+
+    pub fn ortho(left: f32, right: f32, bottom: f32, top: f32, near_plane: f32, far_plane: f32) Matrix {
+        const rl = right - left;
+        const tb = top - bottom;
+        const @"fn" = far_plane - near_plane;
+
+        return .{ .items = .{
+            .{ 2.0 / rl, 0, 0, -(left + right) / rl },
+            .{ 0, 2.0 / tb, 0, -(top + bottom) / tb },
+            .{ 0, 0, -2.0 / @"fn", -(far_plane + near_plane) / @"fn" },
             .{ 0, 0, 0, 1 },
         } };
     }
 
-    pub fn initTranslation(len: comptime_int, translation: @Vector(len, f32)) Self {
-        var self = Self.intIdentity();
-        for (0..len) |i| {
-            self.data[i][3] = translation[i];
-        }
-        return self;
-    }
-
-    pub fn getColumn(self: Self, column: usize) @Vector(4, f32) {
+    pub fn column(self: Self, j: usize) Vector4 {
         return .{
-            self.data[0][column],
-            self.data[1][column],
-            self.data[2][column],
-            self.data[3][column],
+            self.items[0][j],
+            self.items[1][j],
+            self.items[2][j],
+            self.items[3][j],
         };
     }
 
-    pub fn multiplicationMatrix(self: Self, other: Self) Self {
-        var data: [4]@Vector(4, f32) = undefined;
-        for (0..4) |y| {
-            for (0..4) |x| {
-                data[y][x] = @reduce(.Add, self.data[y] * other.getColumn(x));
+    pub fn row(self: Self, i: usize) Vector4 {
+        return self.items[i];
+    }
+
+    pub fn multiply(left: Self, right: Self) Self {
+        return .{ .items = .{
+            .{
+                @reduce(.Add, left.row(0) * right.column(0)),
+                @reduce(.Add, left.row(0) * right.column(1)),
+                @reduce(.Add, left.row(0) * right.column(2)),
+                @reduce(.Add, left.row(0) * right.column(3)),
+            },
+            .{
+                @reduce(.Add, left.row(1) * right.column(0)),
+                @reduce(.Add, left.row(1) * right.column(1)),
+                @reduce(.Add, left.row(1) * right.column(2)),
+                @reduce(.Add, left.row(1) * right.column(3)),
+            },
+            .{
+                @reduce(.Add, left.row(2) * right.column(0)),
+                @reduce(.Add, left.row(2) * right.column(1)),
+                @reduce(.Add, left.row(2) * right.column(2)),
+                @reduce(.Add, left.row(2) * right.column(3)),
+            },
+            .{
+                @reduce(.Add, left.row(3) * right.column(0)),
+                @reduce(.Add, left.row(3) * right.column(1)),
+                @reduce(.Add, left.row(3) * right.column(2)),
+                @reduce(.Add, left.row(3) * right.column(3)),
+            },
+        } };
+    }
+
+    pub fn toFloat(self: Self) [16]f32 {
+        var result: [16]f32 = undefined;
+        for (0..4) |i| {
+            for (0..4) |j| {
+                result[i * 4 + j] = self.items[j][i];
             }
         }
-        return .{ .data = data };
-    }
-
-    pub fn multiplicationVector(self: Self, vector: @Vector(3, f32)) @Vector(3, f32) {
-        var vector4f: @Vector(4, f32) = @splat(1);
-        for (@as([3]f32, vector), 0..) |value, i| {
-            vector4f[i] = value;
-        }
-        return .{
-            @reduce(.Add, self.data[0] * vector4f),
-            @reduce(.Add, self.data[1] * vector4f),
-            @reduce(.Add, self.data[2] * vector4f),
-        };
-    }
-
-    pub fn ortho(left: f32, right: f32, bottom: f32, top: f32, near: f32, far: f32) Self {
-        return Self.initScale(.{
-            2.0 / (right - left),
-            2.0 / (top - bottom),
-            2.0 / (far - near),
-        }).multiplicationMatrix(Self.initTranslation(3, .{
-            -(left + right) / 2,
-            -(top + bottom) / 2,
-            -(far + near) / 2,
-        }));
+        return result;
     }
 };

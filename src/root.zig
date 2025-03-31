@@ -5,20 +5,25 @@ const glfw = @import("glfw.zig");
 const stb = @import("stb.zig");
 const Shader = @import("shader.zig");
 pub const Color = @import("color.zig");
-pub const Vector2f = @Vector(2, f32);
-pub const Matrix4f = @import("math.zig").Matrix4f;
+pub const math = @import("math.zig");
+pub const Matrix = math.Matrix;
+pub const Vector2 = math.Vector2;
+pub const Vector3 = math.Vector3;
+pub const Vector4 = math.Vector4;
 
 const Self = @This();
 
 var VAO: gl.VertexArray = undefined;
 var VBO: gl.Buffer = undefined;
 var EBO: gl.Buffer = undefined;
-var projection: Matrix4f = undefined;
+var projection: Matrix = undefined;
 var shader: Shader = undefined;
 
 window: glfw.Window,
 
-pub fn init(allocator: std.mem.Allocator, error_writer: std.fs.File.Writer, size: Vector2f, title: []const u8) !Self {
+pub fn init(allocator: std.mem.Allocator, size: Vector2, title: []const u8) !Self {
+    const error_writer = std.io.getStdErr().writer();
+
     try glfw.init();
     glfw.setupOpenGL(3, 3, .core_profile);
     const window = try glfw.Window.init(@intFromFloat(size[0]), @intFromFloat(size[1]), title);
@@ -30,10 +35,10 @@ pub fn init(allocator: std.mem.Allocator, error_writer: std.fs.File.Writer, size
     VBO = gl.Buffer.init(.array);
     EBO = gl.Buffer.init(.element_array);
 
-    projection = Matrix4f.ortho(0, size[0], size[1], 0, -1, 1);
+    projection = Matrix.ortho(0, size[0], size[1], 0, -1, 1);
     shader = try Shader.init(allocator, error_writer, "basic.vert", "basic.frag");
     shader.use();
-    shader.setUniform(4, Matrix4f, "projection", projection);
+    shader.setUniform(4, Matrix, "projection", projection);
 
     return .{ .window = window };
 }
@@ -52,9 +57,9 @@ pub fn clearColor(color: Color) void {
     gl.clear(gl.color_buffer_bit);
 }
 
-pub fn drawRectangle(position: Vector2f, size: Vector2f, color: Color) void {
+pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) void {
     _ = color;
-    const model = Matrix4f.initTranslation(2, position);
+    const model = Matrix.translate(2, position);
 
     const vertices = [_]f32{
         // positions (3) colors (3) texture coords (2)
@@ -70,7 +75,7 @@ pub fn drawRectangle(position: Vector2f, size: Vector2f, color: Color) void {
     };
 
     shader.use();
-    shader.setUniform(4, Matrix4f, "model", model);
+    shader.setUniform(4, Matrix, "model", model);
     VAO.bind();
     defer VAO.unbind();
 
