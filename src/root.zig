@@ -29,7 +29,6 @@ pub const Config = struct {
 };
 
 pub fn init(
-    allocator: std.mem.Allocator,
     config: Config,
 ) !Self {
     const error_writer = std.io.getStdErr().writer();
@@ -50,7 +49,7 @@ pub fn init(
     EBO = gl.Buffer.init(.element_array);
 
     projection = Matrix.ortho(0, config.size[0], config.size[1], 0, -1, 1);
-    shader = try Shader.init(allocator, error_writer, "basic.vert", "basic.frag");
+    shader = try Shader.init(error_writer, "shaders/basic.glsl");
     shader.use();
     shader.setUniform(4, Matrix, "projection", projection);
 
