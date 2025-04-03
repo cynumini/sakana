@@ -1,9 +1,6 @@
 const std = @import("std");
 
-const gl = @import("gl.zig");
-const cgl = gl.c;
-const glfw = @import("glfw.zig");
-const stb = @import("stb.zig");
+const c = @import("c.zig").c;
 const Shader = @import("shader.zig");
 pub const Color = @import("color.zig");
 pub const math = @import("math.zig");
@@ -14,13 +11,13 @@ pub const Vector4 = math.Vector4;
 
 const Self = @This();
 
-var VAO: gl.VertexArray = undefined;
-var VBO: gl.Buffer = undefined;
-var EBO: gl.Buffer = undefined;
+var VAO: u32 = undefined;
+var VBO: u32 = undefined;
+var EBO: u32 = undefined;
 var projection: Matrix = undefined;
 var shader: Shader = undefined;
 
-window: glfw.Window,
+window: *c.GLFWwindow,
 
 pub const Config = struct {
     title: []const u8 = "sakana",
@@ -29,29 +26,42 @@ pub const Config = struct {
 };
 
 pub fn init(
+    allocator: std.mem.Allocator,
     config: Config,
 ) !Self {
     const error_writer = std.io.getStdErr().writer();
 
-    try glfw.init();
-    glfw.setupOpenGL(3, 3, .core_profile);
-    const window = try glfw.Window.init(
+    // cglfw.glfwInitHint(cglfw.GLFW_PLATFORM, cglfw.GLFW_PLATFORM_X11);
+    if (c.glfwInit() != c.GLFW_TRUE) return error.GLFWInitError;
+
+    c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MAJOR, 3);
+    c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 3);
+    c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
+
+    const window = c.glfwCreateWindow(
         @intFromFloat(config.size[0]),
         @intFromFloat(config.size[1]),
-        config.title,
-    );
-    window.makeContextCurrent();
+        config.title.ptr,
+        null,
+        null,
+    ) orelse {
+        return error.GLFWCreateWindowError;
+    };
+    c.glfwMakeContextCurrent(window);
 
-    try gl.init();
+    if (c.gladLoadGLLoader(@ptrCast(&c.glfwGetProcAddress)) == 0) {
+        return error.GLInitError;
+    }
 
-    VAO = gl.VertexArray.init();
-    VBO = gl.Buffer.init(.array);
-    EBO = gl.Buffer.init(.element_array);
+    c.glGenVertexArrays(1, @ptrCast(&VAO));
+
+    c.glGenBuffers(1, @ptrCast(&VBO));
+    c.glGenBuffers(1, @ptrCast(&EBO));
 
     projection = Matrix.ortho(0, config.size[0], config.size[1], 0, -1, 1);
-    shader = try Shader.init(error_writer, "shaders/basic.glsl");
+    shader = try Shader.init(allocator, error_writer, "shaders/basic.glsl");
     shader.use();
-    shader.setUniform(4, Matrix, "projection", projection);
+    try shader.uniformMatrix("projection", projection);
 
     setClearColor(config.clear_color);
 
@@ -60,23 +70,23 @@ pub fn init(
 
 pub fn deinit(self: *Self) void {
     _ = self;
-    defer glfw.deinit();
+    defer c.glfwTerminate();
     defer shader.deinit();
-    defer VAO.deinit();
-    defer VBO.deinit();
-    defer EBO.deinit();
+    defer c.glDeleteVertexArrays(1, @ptrCast(&VAO));
+    defer c.glDeleteBuffers(1, @ptrCast(&VBO));
+    defer c.glDeleteBuffers(1, @ptrCast(&EBO));
 }
 
 pub fn setClearColor(color: Color) void {
     const normalized = color.normalize();
-    cgl.glClearColor(normalized[0], normalized[1], normalized[2], normalized[3]);
+    c.glClearColor(normalized[0], normalized[1], normalized[2], normalized[3]);
 }
 
 pub fn clear() void {
-    cgl.glClear(cgl.GL_COLOR_BUFFER_BIT);
+    c.glClear(c.GL_COLOR_BUFFER_BIT);
 }
 
-pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) void {
+pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
     _ = color;
     const model = Matrix.translate(2, position);
 
@@ -94,30 +104,42 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) void {
     };
 
     shader.use();
-    shader.setUniform(4, Matrix, "model", model);
-    VAO.bind();
-    defer VAO.unbind();
+    try shader.uniformMatrix("model", model);
 
-    VBO.bind();
-    defer VBO.unbind();
+    c.glBindVertexArray(VAO);
+    defer c.glBindVertexArray(0);
 
-    VBO.data(f32, &vertices);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+    defer c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
 
-    EBO.bind();
-    defer EBO.unbind();
+    c.glBufferData(
+        c.GL_ARRAY_BUFFER,
+        @sizeOf(f32) * vertices.len,
+        @ptrCast(&vertices),
+        c.GL_STATIC_DRAW,
+    );
 
-    EBO.data(u32, &indices);
+    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
+    defer c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    VBO.vertexAttribPointer(0, 3, .float, false, 3 * @sizeOf(f32), @ptrFromInt(0));
-    VBO.enableVertexAttribArray(0);
+    c.glBufferData(
+        c.GL_ELEMENT_ARRAY_BUFFER,
+        @sizeOf(u32) * indices.len,
+        @ptrCast(&indices),
+        c.GL_STATIC_DRAW,
+    );
 
-    gl.drawElements(.triangles, 6, .unsigned_int);
+    c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrFromInt(0));
+    c.glEnableVertexAttribArray(0);
+
+    // cgl.glPolygonMode(cgl.GL_FRONT_AND_BACK, cgl.GL_LINE);
+    c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, @ptrFromInt(0));
 }
 
 pub fn run(self: *Self, comptime update_callback: *const fn () anyerror!void) !void {
-    while (!self.window.shouldClose()) {
+    while (c.glfwWindowShouldClose(self.window) == c.GL_FALSE) {
         try update_callback();
-        self.window.swapBuffers();
-        glfw.pollEvents();
+        c.glfwSwapBuffers(self.window);
+        c.glfwPollEvents();
     }
 }
