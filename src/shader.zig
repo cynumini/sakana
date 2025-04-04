@@ -1,7 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 
-pub const Matrix = @import("math.zig").Matrix;
+pub const math = @import("math.zig");
 
 id: u32,
 uniforms: std.StringArrayHashMap(i32),
@@ -109,7 +109,12 @@ pub fn getUniformLocation(self: *Self, name: []const u8) !i32 {
     return id.?;
 }
 
-pub fn uniformMatrix(self: *Self, name: []const u8, value: Matrix) !void {
+pub fn uniformMatrix(self: *Self, name: []const u8, value: math.Matrix) !void {
     const id = try self.getUniformLocation(name);
     c.glUniformMatrix4fv(id, 1, c.GL_FALSE, @ptrCast(&value.toFloat()));
+}
+
+pub fn uniform4f(self: *Self, name: []const u8, value: math.Vector4) !void {
+    const id = try self.getUniformLocation(name);
+    c.glUniform4fv(id, 1, @ptrCast(&value));
 }

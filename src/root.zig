@@ -25,6 +25,13 @@ pub const Config = struct {
     clear_color: Color = Color.white,
 };
 
+export fn framebufferSizeCallback(window: ?*c.GLFWwindow, width: i32, height: i32) void {
+    _ = window;
+    shader.use();
+    projection = Matrix.ortho(0, @floatFromInt(width), @floatFromInt(height), 0, -1, 1);
+    c.glViewport(0, 0, width, height);
+}
+
 pub fn init(
     allocator: std.mem.Allocator,
     config: Config,
@@ -39,6 +46,7 @@ pub fn init(
     c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
     // Enable debug;
     c.glfwWindowHint(c.GLFW_OPENGL_DEBUG_CONTEXT, 0); // 1 = true, 0 = false
+    // c.glPolygonMode(c.GL_FRONT_AND_BACK, c.GL_LINE);
 
     const window = c.glfwCreateWindow(
         @intFromFloat(config.size[0]),
@@ -50,6 +58,7 @@ pub fn init(
         return error.GLFWCreateWindowError;
     };
     c.glfwMakeContextCurrent(window);
+    _ = c.glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
 
     if (c.gladLoadGLLoader(@ptrCast(&c.glfwGetProcAddress)) == 0) {
         return error.GLInitError;
@@ -135,11 +144,9 @@ pub fn clear() void {
 }
 
 pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
-    _ = color;
     const model = Matrix.translate(2, position);
 
     const vertices = [_]f32{
-        // positions (3) colors (3) texture coords (2)
         size[0], 0.0, 0.0, //
         size[0], size[1], 0.0, //
         0.0, size[1], 0.0, //
@@ -153,6 +160,8 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
 
     shader.use();
     try shader.uniformMatrix("model", model);
+    try shader.uniformMatrix("projection", projection);
+    try shader.uniform4f("color", color.normalize());
 
     c.glBindVertexArray(VAO);
     defer c.glBindVertexArray(0);
@@ -180,7 +189,6 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
     c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrFromInt(0));
     c.glEnableVertexAttribArray(0);
 
-    // cgl.glPolygonMode(cgl.GL_FRONT_AND_BACK, cgl.GL_LINE);
     c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, @ptrFromInt(0));
 }
 

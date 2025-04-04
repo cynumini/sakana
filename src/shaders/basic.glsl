@@ -1,5 +1,5 @@
 @vs vs
-#version 330 core
+#version 430 core
 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aColor;
@@ -21,20 +21,21 @@ void main()
 @end
 
 @fs fs
-#version 330 core
+#version 430 core
 
 out vec4 FragColor;
 
 in vec3 ourColor;
 in vec2 TexCoord;
 
+uniform vec4 color;
 uniform sampler2D texture1;
 uniform sampler2D texture2;
 
 void main()
 {
 	// FragColor = mix(texture(texture1, TexCoord), texture(texture2, TexCoord), 0.5);
-	FragColor = vec4(1, 1, 1, 1);
+	FragColor = color;
 }
 @end
 
