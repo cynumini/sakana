@@ -118,3 +118,12 @@ pub fn uniform4f(self: *Self, name: []const u8, value: math.Vector4) !void {
     const id = try self.getUniformLocation(name);
     c.glUniform4fv(id, 1, @ptrCast(&value));
 }
+pub fn uniform1f(self: *Self, name: []const u8, value: f32) !void {
+    const id = try self.getUniformLocation(name);
+    c.glUniform1f(id, value);
+}
+
+pub fn uniform1i(self: *Self, name: []const u8, value: i32) !void {
+    const id = try self.getUniformLocation(name);
+    c.glUniform1i(id, value);
+}

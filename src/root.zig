@@ -8,6 +8,7 @@ pub const Matrix = math.Matrix;
 pub const Vector2 = math.Vector2;
 pub const Vector3 = math.Vector3;
 pub const Vector4 = math.Vector4;
+pub const Texture = @import("texture.zig");
 
 const Self = @This();
 
@@ -45,7 +46,7 @@ pub fn init(
     c.glfwWindowHint(c.GLFW_CONTEXT_VERSION_MINOR, 3);
     c.glfwWindowHint(c.GLFW_OPENGL_PROFILE, c.GLFW_OPENGL_CORE_PROFILE);
     // Enable debug;
-    c.glfwWindowHint(c.GLFW_OPENGL_DEBUG_CONTEXT, 0); // 1 = true, 0 = false
+    c.glfwWindowHint(c.GLFW_OPENGL_DEBUG_CONTEXT, 1); // 1 = true, 0 = false
     // c.glPolygonMode(c.GL_FRONT_AND_BACK, c.GL_LINE);
 
     const window = c.glfwCreateWindow(
@@ -162,6 +163,7 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
     try shader.uniformMatrix("model", model);
     try shader.uniformMatrix("projection", projection);
     try shader.uniform4f("color", color.normalize());
+    try shader.uniform1i("isTexture", 0);
 
     c.glBindVertexArray(VAO);
     defer c.glBindVertexArray(0);
@@ -192,6 +194,59 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
     c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, @ptrFromInt(0));
 }
 
+pub fn drawTexture(position: Vector2, size: Vector2, texture: Texture) !void {
+    const model = Matrix.translate(2, position);
+
+    const vertices = [_]f32{
+        // position + texture cordinates
+        size[0], 0.0, 1.0, 0.0, // top right
+        size[0], size[1], 1.0, 1.0, // bottom right
+        0.0, size[1], 0.0, 1.0, // bottom let
+        0.0, 0.0, 0.0, 0.0, // top left
+    };
+
+    const indices = [_]u32{ // note that we start from 0!
+        0, 1, 3, // first triangle
+        1, 2, 3, // second triangle
+    };
+
+    texture.bind();
+
+    shader.use();
+    try shader.uniformMatrix("model", model);
+    try shader.uniformMatrix("projection", projection);
+    try shader.uniform1i("texture0", 0);
+    try shader.uniform1i("isTexture", 1);
+    try shader.uniform4f("color", Color.white.normalize());
+
+    c.glBindVertexArray(VAO);
+    defer c.glBindVertexArray(0);
+
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+    defer c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+
+    c.glBufferData(
+        c.GL_ARRAY_BUFFER,
+        @sizeOf(f32) * vertices.len,
+        @ptrCast(&vertices),
+        c.GL_DYNAMIC_DRAW,
+    );
+
+    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
+    defer c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    c.glBufferData(
+        c.GL_ELEMENT_ARRAY_BUFFER,
+        @sizeOf(u32) * indices.len,
+        @ptrCast(&indices),
+        c.GL_DYNAMIC_DRAW,
+    );
+
+    c.glVertexAttribPointer(0, 4, c.GL_FLOAT, c.GL_FALSE, 4 * @sizeOf(f32), @ptrFromInt(0));
+    c.glEnableVertexAttribArray(0);
+
+    c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, @ptrFromInt(0));
+}
 pub fn run(self: *Self, comptime update_callback: *const fn () anyerror!void) !void {
     while (c.glfwWindowShouldClose(self.window) == c.GL_FALSE) {
         try update_callback();
