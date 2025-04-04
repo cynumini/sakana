@@ -9,6 +9,11 @@ pub const Vector2 = math.Vector2;
 pub const Vector3 = math.Vector3;
 pub const Vector4 = math.Vector4;
 pub const Texture = @import("texture.zig");
+pub const Image = @import("image.zig");
+pub const Input = @import("input.zig");
+pub const Key = Input.Key;
+pub const Action = Input.Action;
+pub const Mods = Input.Mods;
 
 const Self = @This();
 
@@ -17,26 +22,48 @@ var VBO: u32 = undefined;
 var EBO: u32 = undefined;
 var projection: Matrix = undefined;
 var shader: Shader = undefined;
+const ResizeCallback = *const fn (Vector2) void;
+const KeyCallback = *const fn (key: Key, action: Action, mods: Mods) void;
+var resize_callback: ?ResizeCallback = null;
+var key_callback: ?KeyCallback = null;
 
-window: *c.GLFWwindow,
+var main_window: *c.GLFWwindow = undefined;
 
 pub const Config = struct {
     title: []const u8 = "sakana",
-    size: Vector2 = .{ 1280, 720 },
+    size: Vector2 = Vector2.init(1280, 720),
     clear_color: Color = Color.white,
+    resize_callback: ?ResizeCallback = null,
+    key_callback: ?KeyCallback = null,
 };
 
 export fn framebufferSizeCallback(window: ?*c.GLFWwindow, width: i32, height: i32) void {
     _ = window;
     shader.use();
-    projection = Matrix.ortho(0, @floatFromInt(width), @floatFromInt(height), 0, -1, 1);
+    const size = Vector2.init(@floatFromInt(width), @floatFromInt(height));
+    projection = Matrix.ortho(0, size.x, size.y, 0, -1, 1);
     c.glViewport(0, 0, width, height);
+    if (resize_callback) |rc| {
+        rc(size);
+    }
+}
+
+export fn keyCallback(window: ?*c.GLFWwindow, key: i32, _: i32, action: i32, mods: i32) void {
+    _ = window;
+    if (key_callback) |kc| {
+        kc(@enumFromInt(key), @enumFromInt(action), .{
+            .shift = (mods | 1) != 0,
+            .control = (mods | 2) != 0,
+            .alt = (mods | 4) != 0,
+            .super = (mods | 8) != 0,
+        });
+    }
 }
 
 pub fn init(
     allocator: std.mem.Allocator,
     config: Config,
-) !Self {
+) !void {
     const error_writer = std.io.getStdErr().writer();
 
     // cglfw.glfwInitHint(cglfw.GLFW_PLATFORM, cglfw.GLFW_PLATFORM_X11);
@@ -49,18 +76,20 @@ pub fn init(
     c.glfwWindowHint(c.GLFW_OPENGL_DEBUG_CONTEXT, 1); // 1 = true, 0 = false
     // c.glPolygonMode(c.GL_FRONT_AND_BACK, c.GL_LINE);
 
-    const window = c.glfwCreateWindow(
-        @intFromFloat(config.size[0]),
-        @intFromFloat(config.size[1]),
+    main_window = c.glfwCreateWindow(
+        config.size.intX(),
+        config.size.intY(),
         config.title.ptr,
         null,
         null,
     ) orelse {
         return error.GLFWCreateWindowError;
     };
-    c.glfwMakeContextCurrent(window);
-    _ = c.glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
-
+    c.glfwMakeContextCurrent(main_window);
+    _ = c.glfwSetFramebufferSizeCallback(main_window, framebufferSizeCallback);
+    _ = c.glfwSetKeyCallback(main_window, keyCallback);
+    if (config.resize_callback) |rc| resize_callback = rc;
+    if (config.key_callback) |kc| key_callback = kc;
     if (c.gladLoadGLLoader(@ptrCast(&c.glfwGetProcAddress)) == 0) {
         return error.GLInitError;
     }
@@ -70,7 +99,7 @@ pub fn init(
     c.glGenBuffers(1, @ptrCast(&VBO));
     c.glGenBuffers(1, @ptrCast(&EBO));
 
-    projection = Matrix.ortho(0, config.size[0], config.size[1], 0, -1, 1);
+    projection = Matrix.ortho(0, config.size.x, config.size.y, 0, -1, 1);
     shader = try Shader.init(allocator, error_writer, "shaders/basic.glsl");
     shader.use();
     try shader.uniformMatrix("projection", projection);
@@ -86,8 +115,8 @@ pub fn init(
         c.glDebugMessageCallback(glDebugOutput, null);
         c.glDebugMessageControl(c.GL_DONT_CARE, c.GL_DONT_CARE, c.GL_DONT_CARE, 0, null, c.GL_TRUE);
     }
-
-    return .{ .window = window };
+    c.glEnable(c.GL_BLEND);
+    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 }
 
 export fn glDebugOutput(source: u32, @"type": u32, id: u32, severity: u32, length: i32, message: [*c]const u8, user_param: ?*const anyopaque) void {
@@ -126,8 +155,7 @@ export fn glDebugOutput(source: u32, @"type": u32, id: u32, severity: u32, lengt
     }
 }
 
-pub fn deinit(self: *Self) void {
-    _ = self;
+pub fn deinit() void {
     defer c.glfwTerminate();
     defer shader.deinit();
     defer c.glDeleteVertexArrays(1, @ptrCast(&VAO));
@@ -148,10 +176,10 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
     const model = Matrix.translate(2, position);
 
     const vertices = [_]f32{
-        size[0], 0.0, 0.0, //
-        size[0], size[1], 0.0, //
-        0.0, size[1], 0.0, //
-        0.0, 0.0, 0.0, //
+        size.x, 0.0, //
+        size.x, size.y, //
+        0.0, size.y, //
+        0.0, 0.0, //
     };
 
     const indices = [_]u32{ // note that we start from 0!
@@ -188,20 +216,49 @@ pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
         c.GL_DYNAMIC_DRAW,
     );
 
-    c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrFromInt(0));
+    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 2 * @sizeOf(f32), @ptrFromInt(0));
     c.glEnableVertexAttribArray(0);
 
     c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, @ptrFromInt(0));
 }
 
-pub fn drawTexture(position: Vector2, size: Vector2, texture: Texture) !void {
-    const model = Matrix.translate(2, position);
+const StretchAspect = enum { ignore, keep };
+
+pub fn drawTexture(
+    texture: Texture,
+    position: Vector2,
+    size: Vector2,
+    stretch_aspect: StretchAspect,
+) !void {
+    const new_size, const new_position = blk: switch (stretch_aspect) {
+        .keep => {
+            const texture_ratio = texture.size.x / texture.size.y;
+            const current_ratio = size.x / size.y;
+
+            if (current_ratio > texture_ratio) {
+                const new_x = size.y * texture_ratio;
+                break :blk .{
+                    Vector2.init(new_x, size.y),
+                    Vector2.init(position.x + (size.x - new_x) / 2, position.y),
+                };
+            } else {
+                const new_y = size.x / texture_ratio;
+                break :blk .{
+                    Vector2.init(size.x, new_y),
+                    Vector2.init(position.x, position.y + (size.y - new_y) / 2),
+                };
+            }
+        },
+        else => .{ size, position },
+    };
+
+    const model = Matrix.translate(2, new_position);
 
     const vertices = [_]f32{
         // position + texture cordinates
-        size[0], 0.0, 1.0, 0.0, // top right
-        size[0], size[1], 1.0, 1.0, // bottom right
-        0.0, size[1], 0.0, 1.0, // bottom let
+        new_size.x, 0.0, 1.0, 0.0, // top right
+        new_size.x, new_size.y, 1.0, 1.0, // bottom right
+        0.0, new_size.y, 0.0, 1.0, // bottom let
         0.0, 0.0, 0.0, 0.0, // top left
     };
 
@@ -215,9 +272,9 @@ pub fn drawTexture(position: Vector2, size: Vector2, texture: Texture) !void {
     shader.use();
     try shader.uniformMatrix("model", model);
     try shader.uniformMatrix("projection", projection);
-    try shader.uniform1i("texture0", 0);
     try shader.uniform1i("isTexture", 1);
     try shader.uniform4f("color", Color.white.normalize());
+    try shader.uniform1i("texture0", 0);
 
     c.glBindVertexArray(VAO);
     defer c.glBindVertexArray(0);
@@ -247,10 +304,19 @@ pub fn drawTexture(position: Vector2, size: Vector2, texture: Texture) !void {
 
     c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, @ptrFromInt(0));
 }
-pub fn run(self: *Self, comptime update_callback: *const fn () anyerror!void) !void {
-    while (c.glfwWindowShouldClose(self.window) == c.GL_FALSE) {
+
+pub fn run(comptime update_callback: *const fn () anyerror!void) !void {
+    while (c.glfwWindowShouldClose(main_window) == c.GL_FALSE) {
         try update_callback();
-        c.glfwSwapBuffers(self.window);
+        c.glfwSwapBuffers(main_window);
         c.glfwPollEvents();
     }
+}
+
+pub fn getKey(key: Key) bool {
+    return c.glfwGetKey(main_window, @intFromEnum(key)) == 1;
+}
+
+pub fn exit() void {
+    c.glfwSetWindowShouldClose(main_window, 1);
 }

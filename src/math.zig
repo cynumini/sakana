@@ -1,6 +1,50 @@
 const std = @import("std");
 
-pub const Vector2 = @Vector(2, f32);
+pub const Vector2 = struct {
+    const Self = @This();
+
+    x: f32,
+    y: f32,
+
+    pub fn init(x: f32, y: f32) Self {
+        return .{ .x = x, .y = y };
+    }
+
+    pub fn initInt(x: i32, y: i32) Self {
+        return .{
+            .x = @floatFromInt(x),
+            .y = @floatFromInt(y),
+        };
+    }
+
+    pub fn intX(self: Self) i32 {
+        return @intFromFloat(self.x);
+    }
+
+    pub fn intY(self: Self) i32 {
+        return @intFromFloat(self.y);
+    }
+
+    pub fn scaleTo(self: Self, max: Self) Self {
+        const aspect = self.x / self.y;
+
+        if (max.x / max.y > aspect) {
+            return .{
+                .x = max.y * aspect,
+                .y = max.y,
+            };
+        } else {
+            return .{
+                .x = max.x,
+                .y = max.x / aspect,
+            };
+        }
+    }
+
+    pub fn vector(self: Self) @Vector(2, f32) {
+        return .{ self.x, self.y };
+    }
+};
 pub const Vector3 = @Vector(3, f32);
 pub const Vector4 = @Vector(4, f32);
 
@@ -28,11 +72,18 @@ pub const Matrix = struct {
         return matrix;
     }
 
-    pub fn translate(len: comptime_int, vector: @Vector(len, f32)) Self {
+    pub fn translate(len: comptime_int, vector: anytype) Self {
+        var data: @Vector(len, f32) = undefined;
+        switch (@TypeOf(vector)) {
+            Vector2 => data = vector.vector(),
+            Vector3 => data = Vector3,
+            Vector4 => data = Vector4,
+            else => unreachable,
+        }
         var matrix = comptime Self.identity();
 
         for (0..len) |i| {
-            matrix.items[i][3] = vector[i];
+            matrix.items[i][3] = data[i];
         }
 
         return matrix;
