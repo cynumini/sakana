@@ -23,9 +23,9 @@ var EBO: u32 = undefined;
 var projection: Matrix = undefined;
 var shader: Shader = undefined;
 const ResizeCallback = *const fn (Vector2) void;
-const KeyCallback = *const fn (key: Key, action: Action, mods: Mods) void;
+const InputCallback = *const fn (key: Key, action: Action, mods: Mods) anyerror!void;
 var resize_callback: ?ResizeCallback = null;
-var key_callback: ?KeyCallback = null;
+var input_callback: ?InputCallback = null;
 
 var main_window: *c.GLFWwindow = undefined;
 
@@ -34,7 +34,7 @@ pub const Config = struct {
     size: Vector2 = Vector2.init(1280, 720),
     clear_color: Color = Color.white,
     resize_callback: ?ResizeCallback = null,
-    key_callback: ?KeyCallback = null,
+    input_callback: ?InputCallback = null,
 };
 
 export fn framebufferSizeCallback(window: ?*c.GLFWwindow, width: i32, height: i32) void {
@@ -50,13 +50,13 @@ export fn framebufferSizeCallback(window: ?*c.GLFWwindow, width: i32, height: i3
 
 export fn keyCallback(window: ?*c.GLFWwindow, key: i32, _: i32, action: i32, mods: i32) void {
     _ = window;
-    if (key_callback) |kc| {
+    if (input_callback) |kc| {
         kc(@enumFromInt(key), @enumFromInt(action), .{
             .shift = (mods | 1) != 0,
             .control = (mods | 2) != 0,
             .alt = (mods | 4) != 0,
             .super = (mods | 8) != 0,
-        });
+        }) catch unreachable;
     }
 }
 
@@ -89,7 +89,7 @@ pub fn init(
     _ = c.glfwSetFramebufferSizeCallback(main_window, framebufferSizeCallback);
     _ = c.glfwSetKeyCallback(main_window, keyCallback);
     if (config.resize_callback) |rc| resize_callback = rc;
-    if (config.key_callback) |kc| key_callback = kc;
+    if (config.input_callback) |kc| input_callback = kc;
     if (c.gladLoadGLLoader(@ptrCast(&c.glfwGetProcAddress)) == 0) {
         return error.GLInitError;
     }
