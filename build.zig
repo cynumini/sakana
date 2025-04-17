@@ -10,19 +10,32 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
     });
 
-    mod.addIncludePath(b.path("deps/glad/include/"));
-    mod.addIncludePath(b.path("deps/stb/include/"));
-    mod.addCSourceFile(.{ .file = b.path("deps/stb/stb_image.c") });
-    mod.addCSourceFile(.{ .file = b.path("deps/glad/src/glad.c") });
-
     const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "sakana",
         .root_module = mod,
     });
 
-    lib.linkSystemLibrary("glfw");
+    const raylib = b.dependency("raylib", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    lib.linkLibrary(raylib.artifact("raylib"));
     lib.linkLibC();
+
+    // Use this c.c file to expose C libraries headers to "sakana"
+    const c = b.addTranslateC(.{
+        .target = target,
+        .optimize = optimize,
+        .root_source_file = b.path("src/c.c"),
+    });
+
+    // Add raylib header files to the include paths
+    c.addIncludePath(raylib.builder.path("src"));
+
+    // Allow @import("c")
+    lib.root_module.addImport("c", c.createModule());
 
     b.installArtifact(lib);
 

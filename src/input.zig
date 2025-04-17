@@ -121,16 +121,3 @@ pub const Key = enum(i32) {
     right_super = 347,
     menu = 348,
 };
-
-pub const Action = enum(i32) {
-    press = 0,
-    release = 1,
-    repeat = 2,
-};
-
-pub const Mods = struct {
-    shift: bool = false,
-    control: bool = false,
-    alt: bool = false,
-    super: bool = false,
-};
