@@ -10,12 +10,19 @@ size: math.Vector2,
 
 pub const DataType = enum { path, memory };
 
-pub const FileType = enum { png, jpeg };
+pub const Format = enum(u8) {
+    jpeg = 1,
+    png = 2,
+    wemp = 33,
+    apng = 23,
+    animated_webp = 83,
+};
 
-pub fn init(input_data: []const u8, data_type: DataType, fileType: FileType) !Self {
-    const file_type = switch (fileType) {
+pub fn init(input_data: []const u8, data_type: DataType, format: Format) !Self {
+    const file_type = switch (format) {
         .jpeg => ".jpeg",
         .png => ".png",
+        else => return error.UnsupportedImageFormat,
     };
     const image = switch (data_type) {
         .memory => raylib.loadImageFromMemory(file_type, input_data.ptr, @intCast(input_data.len)),
@@ -23,10 +30,7 @@ pub fn init(input_data: []const u8, data_type: DataType, fileType: FileType) !Se
     };
     return .{
         .image = image,
-        .size = math.Vector2.init(
-            @floatFromInt(image.width),
-            @floatFromInt(image.height),
-        ),
+        .size = math.Vector2.init(image.width, image.height),
     };
 }
 

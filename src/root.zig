@@ -1,5 +1,4 @@
 const std = @import("std");
-
 pub const raylib = @import("raylib.zig");
 pub const math = @import("math.zig");
 pub const input = @import("input.zig");
@@ -21,9 +20,7 @@ pub const Config = struct {
 };
 
 const ResizeCallback = *const fn (Vector2) void;
-// const InputCallback = *const fn (key: input.Key, action: input.Action, mods: input.Mods) anyerror!void;
 var resize_callback: ?ResizeCallback = null;
-// var input_callback: ?InputCallback = null;
 var clear_color: Color = Color.black;
 var should_run = true;
 
@@ -42,42 +39,14 @@ pub fn deinit() void {
     raylib.closeWindow();
 }
 
-pub fn clear() void {
-    raylib.clearBackground(.{
-        .r = clear_color.r,
-        .g = clear_color.g,
-        .b = clear_color.b,
-        .a = clear_color.a,
-    });
-}
-
-const StretchAspect = enum { ignore, keep };
-
 pub fn drawTexture(
     texture: Texture,
     position: Vector2,
-    size: Vector2,
-    stretch_aspect: StretchAspect,
-) !void {
-    const scale = @min(size.x / texture.size.x, size.y / texture.size.y);
-    const new_position = blk: switch (stretch_aspect) {
-        .keep => {
-            const texture_ratio = texture.size.x / texture.size.y;
-            const current_ratio = size.x / size.y;
-
-            if (current_ratio > texture_ratio) {
-                const new_x = size.y * texture_ratio;
-                break :blk Vector2.init(position.x + (size.x - new_x) / 2, position.y);
-            } else {
-                const new_y = size.x / texture_ratio;
-                break :blk Vector2.init(position.x, position.y + (size.y - new_y) / 2);
-            }
-        },
-        else => size,
-    };
+    scale: f32,
+) void {
     raylib.drawTextureEx(
         texture.texture2D,
-        .{ .x = new_position.x, .y = new_position.y },
+        position.to_raylib(),
         0,
         scale,
         raylib.white,
@@ -85,25 +54,17 @@ pub fn drawTexture(
 }
 
 pub fn drawRectangle(position: Vector2, size: Vector2, color: Color) !void {
-    raylib.drawRectangleV(
-        .{ .x = position.x, .y = position.y },
-        .{ .x = size.x, .y = size.y },
-        .{ .r = color.r, .g = color.g, .b = color.b, .a = color.a },
-    );
+    raylib.drawRectangleV(position.to_raylib(), size.to_raylib(), color.to_raylib());
 }
 
 pub fn run(comptime update_callback: *const fn () anyerror!void, comptime draw_callback: *const fn () anyerror!void) !void {
     while (!raylib.windowShouldClose() and should_run) {
         if (raylib.isWindowResized()) {
-            if (resize_callback) |rc| rc(
-                .init(
-                    @floatFromInt(raylib.getScreenWidth()),
-                    @floatFromInt(raylib.getScreenHeight()),
-                ),
-            );
+            if (resize_callback) |rc| rc(getScreenSize());
         }
         try update_callback();
         raylib.beginDrawing();
+        raylib.clearBackground(clear_color.to_raylib());
         try draw_callback();
         raylib.endDrawing();
     }
@@ -115,4 +76,33 @@ pub fn exit() void {
 
 pub fn isKeyReleased(key: Key) bool {
     return raylib.isKeyReleased(@intFromEnum(key));
+}
+
+pub fn getMaxMonitorSize() Vector2 {
+    const monitor_count: usize = @intCast(raylib.getMonitorCount());
+    var max_width: i32 = 0;
+    var max_height: i32 = 0;
+    for (0..monitor_count) |i| {
+        max_width = @max(raylib.getMonitorWidth(@intCast(i)), max_width);
+        max_height = @max(raylib.getMonitorHeight(@intCast(i)), max_height);
+    }
+    return .init(max_width, max_height);
+}
+
+pub fn getScreenSize() Vector2 {
+    return .init(raylib.getScreenWidth(), raylib.getScreenHeight());
+}
+
+pub fn drawText(text: []const u8, position: Vector2, font_size: i32, color: Color) void {
+    raylib.drawText(
+        text.ptr,
+        try position.getX(i32),
+        try position.getY(i32),
+        font_size,
+        color.to_raylib(),
+    );
+}
+
+pub fn measureText(text: []const u8, font_size: i32) i32 {
+    return raylib.measureText(text.ptr, font_size);
 }
