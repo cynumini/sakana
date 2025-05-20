@@ -1,5 +1,12 @@
 const std = @import("std");
 
+pub const LinuxDisplayBackend = enum {
+    X11,
+    Wayland,
+    Both,
+};
+
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -19,12 +26,13 @@ pub fn build(b: *std.Build) void {
     const raylib = b.dependency("raylib", .{
         .target = target,
         .optimize = optimize,
+        .linux_display_backend = b.option(LinuxDisplayBackend, "linux_display_backend", "Linux display backend to use") orelse .Both,
     });
 
     lib.linkLibrary(raylib.artifact("raylib"));
+    lib.linkSystemLibrary("fontconfig");
     lib.linkLibC();
 
-    // Use this c.c file to expose C libraries headers to "sakana"
     const c = b.addTranslateC(.{
         .target = target,
         .optimize = optimize,

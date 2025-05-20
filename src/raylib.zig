@@ -477,7 +477,7 @@ pub const colorContrast = c.ColorContrast; // Get color with contrast correction
 pub const colorAlpha = c.ColorAlpha; // Get color with alpha applied, alpha goes from 0.0f to 1.0f
 pub const colorAlphaBlend = c.ColorAlphaBlend; // Get src alpha-blended into dst color with tint
 pub const colorLerp = c.ColorLerp; // Get color lerp interpolation between two colors, factor [0.0f..1.0f]
-pub const getColor = c.GetColor; // Get Color structure from hexadecimal value
+// pub const getColor = c.GetColor; // Get Color structure from hexadecimal value
 pub const getPixelColor = c.GetPixelColor; // Get Color from a source pixel pointer of certain format
 pub const setPixelColor = c.SetPixelColor; // Set color formatted into destination pixel pointer
 pub const getPixelDataSize = c.GetPixelDataSize; // Get pixel data size in bytes for certain format
@@ -917,3 +917,12 @@ pub const black = c.BLACK; // Black
 pub const blank = c.BLANK; // Blank (Transparent)
 pub const magenta = c.MAGENTA; // Magenta
 pub const raywhite = c.RAYWHITE; // My own White (raylib logo)
+
+pub fn getColor(hexValue: u32) Color {
+    return Color{
+        .r = @intCast((hexValue >> 24) & 0xFF),
+        .g = @intCast((hexValue >> 16) & 0xFF),
+        .b = @intCast((hexValue >> 8) & 0xFF),
+        .a = @intCast(hexValue & 0xFF),
+    };
+}
