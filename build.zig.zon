@@ -38,7 +38,7 @@
     .dependencies = .{
         .raylib = .{
             .url = "https://github.com/raysan5/raylib/archive/refs/heads/master.tar.gz",
-            .hash = "raylib-5.5.0-whq8uPbNNAQ1ixfyTEA6FhZsDdCpIaIbZaUSlRHP-xl2",
+            .hash = "raylib-5.5.0-whq8uB05NgRNqHhxfYQ5qz60yFcpFeERE0adE0KW7jvM",
         },
     },
     .paths = .{

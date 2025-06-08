@@ -1,4 +1,4 @@
-pub const c = @import("c");
+pub const c = @import("raylib");
 
 // module: rcore
 // Window-related functions

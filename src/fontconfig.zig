@@ -1,5 +1,5 @@
 const std = @import("std");
-pub const c = @import("c");
+pub const c = @import("fontconfig");
 
 /// The caller owns the returned memory
 pub fn getDefaultFontPath(allocator: std.mem.Allocator) ![]const u8 {
