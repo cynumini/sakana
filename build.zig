@@ -6,17 +6,29 @@ pub const LinuxDisplayBackend = enum {
     Both,
 };
 
+pub const Options = struct {
+    raylib: struct {
+        include: bool,
+        linux_display_backend: LinuxDisplayBackend,
+    },
+    fontconfig: bool,
+};
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const raylib_linux_display_backend = b.option(LinuxDisplayBackend, "raylib_linux_display_backend", "Linux display backend to use") orelse .Both;
-    const include_raylib = b.option(bool, "include_raylib", "Include raylib in build") orelse true;
-    const include_fontconfig = b.option(bool, "include_fontconfig", "Include fontconfig in build") orelse true;
+    const options: Options = .{
+        .raylib = .{
+            .include = b.option(bool, "raylib", "Compile with raylib support") orelse false,
+            .linux_display_backend = b.option(LinuxDisplayBackend, "raylib_linux_display_backend", "Linux display backend to use") orelse .Both,
+        },
+        .fontconfig = b.option(bool, "fontconfig", "Compile with fontconfig support") orelse false,
+    };
 
-    const options = b.addOptions();
-    options.addOption(bool, "raylib", include_raylib);
-    options.addOption(bool, "fontconfig", include_fontconfig);
+    const exposed_options = b.addOptions();
+    exposed_options.addOption(bool, "raylib", options.raylib.include);
+    exposed_options.addOption(bool, "fontconfig", options.fontconfig);
 
     const mod = b.addModule("sakana", .{
         .target = target,
@@ -24,7 +36,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
     });
 
-    mod.addOptions("config", options);
+    mod.addOptions("config", exposed_options);
 
     const lib = b.addLibrary(.{
         .linkage = .static,
@@ -32,15 +44,14 @@ pub fn build(b: *std.Build) void {
         .root_module = mod,
     });
 
-
-    if (include_raylib) {
-        const raylib = b.dependency("raylib", .{
+    if (options.raylib.include) {
+        const raylib_dependency = b.dependency("raylib", .{
             .target = target,
             .optimize = optimize,
-            .linux_display_backend = raylib_linux_display_backend,
+            .linux_display_backend = options.raylib.linux_display_backend,
         });
 
-        lib.linkLibrary(raylib.artifact("raylib"));
+        lib.linkLibrary(raylib_dependency.artifact("raylib"));
 
         const raylib_c = b.addTranslateC(.{
             .target = target,
@@ -49,12 +60,12 @@ pub fn build(b: *std.Build) void {
         });
 
         // Add raylib header files to the include paths
-        raylib_c.addIncludePath(raylib.builder.path("src"));
+        raylib_c.addIncludePath(raylib_dependency.builder.path("src"));
 
         lib.root_module.addImport("raylib", raylib_c.createModule());
     }
 
-    if (include_fontconfig) {
+    if (options.fontconfig) {
         lib.linkSystemLibrary("fontconfig");
 
         const fontconfig_c = b.addTranslateC(.{
@@ -66,7 +77,7 @@ pub fn build(b: *std.Build) void {
         lib.root_module.addImport("fontconfig", fontconfig_c.createModule());
     }
 
-    if (include_fontconfig or include_raylib) {
+    if (options.fontconfig or options.raylib.include) {
         lib.linkLibC();
     }
 
