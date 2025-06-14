@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) void {
 
     const options: Options = .{
         .raylib = .{
-            .include = b.option(bool, "raylib", "Compile with raylib support") orelse false,
+            .include = b.option(bool, "raylib", "Compile with raylib support") orelse true,
             .linux_display_backend = b.option(LinuxDisplayBackend, "raylib_linux_display_backend", "Linux display backend to use") orelse .Both,
         },
         .fontconfig = b.option(bool, "fontconfig", "Compile with fontconfig support") orelse false,
@@ -53,16 +53,18 @@ pub fn build(b: *std.Build) void {
 
         lib.linkLibrary(raylib_dependency.artifact("raylib"));
 
-        const raylib_c = b.addTranslateC(.{
+        const raylib_mod = b.addModule("raylib", .{
             .target = target,
             .optimize = optimize,
-            .root_source_file = b.path("src/raylib.c"),
+            .root_source_file = b.path("src/raylib.zig"),
         });
 
-        // Add raylib header files to the include paths
-        raylib_c.addIncludePath(raylib_dependency.builder.path("src"));
-
-        lib.root_module.addImport("raylib", raylib_c.createModule());
+        _ = b.addModule("ui", .{
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = b.path("src/ui.zig"),
+            .imports = &.{.{ .name = "raylib", .module = raylib_mod }},
+        });
     }
 
     if (options.fontconfig) {
