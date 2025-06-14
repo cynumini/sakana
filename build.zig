@@ -71,7 +71,7 @@ pub fn build(b: *std.Build) void {
         const fontconfig_c = b.addTranslateC(.{
             .target = target,
             .optimize = optimize,
-            .root_source_file = b.path("src/raylib.c"),
+            .root_source_file = b.path("src/fontconfig.c"),
         });
 
         lib.root_module.addImport("fontconfig", fontconfig_c.createModule());
