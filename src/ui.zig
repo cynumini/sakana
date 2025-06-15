@@ -147,109 +147,74 @@ pub const Element = struct {
             .y = 0,
         };
 
-        // horizontal
-        blk: {
-            var remaining_width = self.rect.width;
-            remaining_width -= self.padding.left + self.padding.right;
-            remaining_width -= m.as(f32, self.children.items.len - 1) * self.child_gap;
+        const GrowType = enum { horizontal, vertical };
 
-            var growable = std.ArrayList(*Element).init(self.allocator);
-            defer growable.deinit();
-            for (self.children.items) |child| {
-                remaining_width -= child.rect.width;
-                if (child.horizontal == .grow) {
-                    try growable.append(child);
+        inline for (&.{ GrowType.horizontal, GrowType.vertical }) |grow_type| {
+            const dimension = if (grow_type == .horizontal) "width" else "height";
+            const axis = if (grow_type == .horizontal) "horizontal" else "vertical";
+            const sides = if (grow_type == .horizontal) &.{ "left", "right" } else &.{ "top", "bottom" };
+            const direction = if (grow_type == .horizontal) Direction.top_to_bottom else Direction.left_to_right;
+            blk: {
+                var remaining = @field(self.rect, dimension);
+                inline for (sides) |side| {
+                    remaining -= @field(self.padding, side);
                 }
-            }
+                remaining -= m.as(f32, self.children.items.len - 1) * self.child_gap;
 
-            if (growable.items.len == 0) return;
+                var growable = std.ArrayList(*Element).init(self.allocator);
+                defer growable.deinit();
 
-            if (self.direction == .top_to_bottom) {
-                for (growable.items) |child| {
-                    child.rect.width = self.rect.width - (self.padding.left + self.padding.right);
-                }
-                break :blk;
-            }
-
-            while (remaining_width > 0.01) {
-                var smallest = growable.items[0].rect;
-                var second_smallest = default_second_smallest;
-
-                var width_to_add = remaining_width;
-
-                for (growable.items) |child| {
-                    if (child.rect.width < smallest.width) {
-                        second_smallest = smallest;
-                        smallest = child.rect;
-                    }
-                    if (child.rect.width > smallest.width) {
-                        second_smallest.width = @min(second_smallest.width, child.rect.width);
-                        width_to_add = second_smallest.width - smallest.width;
+                for (self.children.items) |child| {
+                    remaining -= @field(child.rect, dimension);
+                    if (@field(child, axis) == .grow) {
+                        try growable.append(child);
                     }
                 }
 
-                width_to_add = @min(width_to_add, remaining_width / m.as(f32, growable.items.len));
+                if (growable.items.len == 0) break :blk;
 
-                for (growable.items) |child| {
-                    if (child.rect.width == smallest.width) {
-                        child.rect.width += width_to_add;
-                        remaining_width -= width_to_add;
+                if (self.direction == direction) {
+                    for (growable.items) |child| {
+                        @field(child.rect, dimension) = @field(self.rect, dimension);
+                        inline for (sides) |side| {
+                            @field(child.rect, dimension) -= @field(self.padding, side);
+                        }
                     }
+                    break :blk;
                 }
-            }
-        }
-        // vertical
-        blk: {
-            var remaining_height = self.rect.height;
-            remaining_height -= self.padding.top + self.padding.bottom;
-            remaining_height -= m.as(f32, self.children.items.len - 1) * self.child_gap;
 
-            var growable = std.ArrayList(*Element).init(self.allocator);
-            defer growable.deinit();
-            for (self.children.items) |child| {
-                remaining_height -= child.rect.height;
-                if (child.vertical == .grow) {
-                    try growable.append(child);
-                }
-            }
+                while (remaining > 0.01) {
+                    var smallest = growable.items[0].rect;
+                    var second_smallest = default_second_smallest;
 
-            if (growable.items.len == 0) return;
+                    var width_to_add = remaining;
 
-            if (self.direction == .left_to_right) {
-                for (growable.items) |child| {
-                    child.rect.height = self.rect.height - (self.padding.top + self.padding.bottom);
-                }
-                break :blk;
-            }
-
-            while (remaining_height > 0.01) {
-                // std.debug.print("{d:.6}, child: {s}\n", .{ remaining_height, self.id.? });
-                var smallest = growable.items[0].rect;
-                var second_smallest = default_second_smallest;
-
-                var width_to_add = remaining_height;
-
-                for (growable.items) |child| {
-                    if (child.rect.height < smallest.height) {
-                        second_smallest = smallest;
-                        smallest = child.rect;
+                    for (growable.items) |child| {
+                        if (@field(child.rect, dimension) < @field(smallest, dimension)) {
+                            second_smallest = smallest;
+                            smallest = child.rect;
+                        }
+                        if (@field(child.rect, dimension) > @field(smallest, dimension)) {
+                            @field(second_smallest, dimension) = @min(
+                                @field(second_smallest, dimension),
+                                @field(child.rect, dimension),
+                            );
+                            width_to_add = @field(second_smallest, dimension) - @field(smallest, dimension);
+                        }
                     }
-                    if (child.rect.height > smallest.height) {
-                        second_smallest.height = @min(second_smallest.height, child.rect.height);
-                        width_to_add = second_smallest.height - smallest.height;
-                    }
-                }
 
-                width_to_add = @min(width_to_add, remaining_height / m.as(f32, growable.items.len));
+                    width_to_add = @min(width_to_add, remaining / m.as(f32, growable.items.len));
 
-                for (growable.items) |child| {
-                    if (child.rect.height == smallest.height) {
-                        child.rect.height += width_to_add;
-                        remaining_height -= width_to_add;
+                    for (growable.items) |child| {
+                        if (@field(child.rect, dimension) == @field(smallest, dimension)) {
+                            @field(child.rect, dimension) += width_to_add;
+                            remaining -= width_to_add;
+                        }
                     }
                 }
             }
         }
+
         for (self.children.items) |child| {
             try child.calculateGrow();
         }
