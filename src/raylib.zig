@@ -27,6 +27,8 @@ pub const ABI = struct {
     pub extern fn WindowShouldClose() bool;
     /// Check if window has been resized last frame
     pub extern fn IsWindowResized() bool;
+    /// Set window minimum dimensions (for FLAG_WINDOW_RESIZABLE)
+    pub extern fn SetWindowMinSize(width: c_int, height: c_int) void;
     /// Get current screen width
     pub extern fn GetScreenWidth() c_int;
     /// Get current screen height
@@ -179,6 +181,10 @@ pub const Window = struct {
     /// Check if window has been resized last frame
     pub fn isResized(_: Window) bool {
         return ABI.IsWindowResized();
+    }
+    /// Set window minimum dimensions (for ConfigFlags.window_resizable)
+    pub fn setMinSize(_: Window, width: usize, height: usize) void {
+        ABI.SetWindowMinSize(@intCast(width), @intCast(height));
     }
     /// Get current screen width
     pub fn getWidth(_: Window) usize {

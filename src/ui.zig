@@ -1,5 +1,6 @@
 const std = @import("std");
 const rl = @import("raylib");
+const m = @import("math.zig");
 
 pub const SizeMode = enum {
     fixed,
@@ -43,157 +44,238 @@ pub const Padding = struct {
 
 pub const Element = struct {
     allocator: std.mem.Allocator,
+    id: ?[]const u8,
 
     parent: ?*Element = null,
     children: std.ArrayList(*Element),
+    rect: rl.Rectangle,
 
-    rectangle: rl.Rectangle,
     padding: Padding,
     child_gap: f32,
-
-    position: rl.Vector2,
-    size: rl.Vector2,
     horizontal: SizeMode,
     vertical: SizeMode,
+    min_size: rl.Vector2,
     direction: Direction,
-
     background_color: ?rl.Color,
 
     pub fn init(args: struct {
         allocator: std.mem.Allocator,
-        position: rl.Vector2 = rl.Vector2.zero,
-        size: rl.Vector2 = rl.Vector2.zero,
+        id: ?[]const u8 = null,
         padding: Padding = .all(8),
         child_gap: f32 = 8,
         horizontal: SizeMode = .fit,
         vertical: SizeMode = .fit,
+        min_size: rl.Vector2 = rl.Vector2.zero,
         direction: Direction = .left_to_right,
         background_color: ?rl.Color = null,
     }) !Element {
         return .{
             .allocator = args.allocator,
+            .id = args.id,
             .children = .init(args.allocator),
-            .rectangle = rl.Rectangle.zero,
-            .position = args.position,
-            .size = args.size,
+            .rect = rl.Rectangle.zero,
+            .padding = args.padding,
+            .child_gap = args.child_gap,
             .horizontal = args.horizontal,
             .vertical = args.vertical,
+            .min_size = args.min_size,
             .direction = args.direction,
-            .child_gap = args.child_gap,
             .background_color = args.background_color,
-            .padding = args.padding,
         };
     }
 
     pub fn deinit(self: *Element) void {
-        for (self.children.items) |child| {
-            child.children.deinit();
-        }
         self.children.deinit();
     }
 
-    fn calculateFit(self: *Element, window: *const rl.Window) void {
-        // Reset
-        if (self.horizontal != .fixed) self.rectangle.width = 0;
-        if (self.vertical != .fixed) self.rectangle.height = 0;
-        self.rectangle.x = 0;
-        self.rectangle.y = 0;
+    fn calcMinSize(self: *Element, window: *const rl.Window) void {
+        self.rect.width = self.padding.left + self.padding.right + self.min_size.x;
+        self.rect.height = self.padding.top + self.padding.bottom + self.min_size.y;
 
-        // Calculate children first
-        for (self.children.items) |child| {
-            child.calculateFit(window);
+        for (self.children.items) |child| child.calcMinSize(window);
+
+        if (self.children.items.len > 0) {
+            const child_gap = m.as(f32, self.children.items.len - 1) * self.child_gap;
+            switch (self.direction) {
+                .left_to_right => if (self.horizontal != .fixed) {
+                    self.rect.width += child_gap;
+                },
+                .top_to_bottom => if (self.vertical != .fixed) {
+                    self.rect.height += child_gap;
+                },
+            }
         }
 
-        if (self.parent) |parent| {
-            self.rectangle.width += parent.padding.left + parent.padding.right;
-            self.rectangle.height += parent.padding.top + parent.padding.bottom;
-            const child_gap = @as(f32, @floatFromInt(parent.children.items.len - 1)) * parent.child_gap;
-            switch (parent.direction) {
+        if (self.parent) |p| {
+            switch (p.direction) {
                 .left_to_right => {
-                    self.rectangle.width += child_gap;
-                    parent.rectangle.width += self.rectangle.width;
-                    parent.rectangle.height = @max(parent.rectangle.height, self.rectangle.height);
+                    if (p.horizontal != .fixed) p.rect.width += self.rect.width;
+                    if (p.vertical != .fixed) {
+                        p.rect.height = @max(
+                            p.rect.height,
+                            self.rect.height + p.padding.top + p.padding.bottom,
+                        );
+                    }
                 },
                 .top_to_bottom => {
-                    self.rectangle.height += child_gap;
-                    parent.rectangle.width = @max(parent.rectangle.width, self.rectangle.width);
-                    parent.rectangle.height += self.rectangle.height;
+                    if (p.horizontal != .fixed) {
+                        p.rect.width = @max(
+                            p.rect.width,
+                            self.rect.width + p.padding.left + p.padding.right,
+                        );
+                    }
+                    if (p.vertical != .fixed) p.rect.height += self.rect.height;
                 },
             }
         } else {
-            self.rectangle.width = @floatFromInt(window.getWidth());
-            self.rectangle.height = @floatFromInt(window.getHeight());
+            window.setMinSize(
+                @intFromFloat(self.rect.width),
+                @intFromFloat(self.rect.height),
+            );
+            self.rect.width = @floatFromInt(window.getWidth());
+            self.rect.height = @floatFromInt(window.getHeight());
         }
     }
 
     fn calculateGrow(self: *Element) !void {
-        var remaining_width = self.rectangle.width;
-        remaining_width -= self.padding.left + self.padding.right;
-        remaining_width -= @as(f32, @floatFromInt(self.children.items.len - 1)) * self.child_gap;
+        if (self.children.items.len == 0) return;
 
-        var growable = std.ArrayList(*Element).init(self.allocator);
-        defer growable.deinit();
-        for (self.children.items) |child| {
-            child.rectangle.height = 100;
-            remaining_width -= child.rectangle.width;
-            try growable.append(child);
+        const default_second_smallest: rl.Rectangle = .{
+            .width = std.math.floatMax(f32),
+            .height = std.math.floatMax(f32),
+            .x = 0,
+            .y = 0,
+        };
+
+        // horizontal
+        blk: {
+            var remaining_width = self.rect.width;
+            remaining_width -= self.padding.left + self.padding.right;
+            remaining_width -= m.as(f32, self.children.items.len - 1) * self.child_gap;
+
+            var growable = std.ArrayList(*Element).init(self.allocator);
+            defer growable.deinit();
+            for (self.children.items) |child| {
+                remaining_width -= child.rect.width;
+                if (child.horizontal == .grow) {
+                    try growable.append(child);
+                }
+            }
+
+            if (growable.items.len == 0) return;
+
+            if (self.direction == .top_to_bottom) {
+                for (growable.items) |child| {
+                    child.rect.width = self.rect.width - (self.padding.left + self.padding.right);
+                }
+                break :blk;
+            }
+
+            while (remaining_width > 0.01) {
+                var smallest = growable.items[0].rect;
+                var second_smallest = default_second_smallest;
+
+                var width_to_add = remaining_width;
+
+                for (growable.items) |child| {
+                    if (child.rect.width < smallest.width) {
+                        second_smallest = smallest;
+                        smallest = child.rect;
+                    }
+                    if (child.rect.width > smallest.width) {
+                        second_smallest.width = @min(second_smallest.width, child.rect.width);
+                        width_to_add = second_smallest.width - smallest.width;
+                    }
+                }
+
+                width_to_add = @min(width_to_add, remaining_width / m.as(f32, growable.items.len));
+
+                for (growable.items) |child| {
+                    if (child.rect.width == smallest.width) {
+                        child.rect.width += width_to_add;
+                        remaining_width -= width_to_add;
+                    }
+                }
+            }
         }
+        // vertical
+        blk: {
+            var remaining_height = self.rect.height;
+            remaining_height -= self.padding.top + self.padding.bottom;
+            remaining_height -= m.as(f32, self.children.items.len - 1) * self.child_gap;
 
-        if (growable.items.len == 0) return;
-
-
-        while (remaining_width > 0) {
-            var smallest = growable.items[0].*;
-            var second_smallest: Element = undefined;
-
-            var width_to_add = remaining_width;
-
-            for (growable.items) |child| {
-                if (child.rectangle.width < smallest.rectangle.width) {
-                    second_smallest = smallest;
-                    smallest = child.*;
-                }
-                if (child.rectangle.width > smallest.rectangle.width) {
-                    second_smallest.rectangle.width = @min(second_smallest.rectangle.width, child.rectangle.width);
-                    width_to_add = second_smallest.rectangle.width - smallest.rectangle.width;
+            var growable = std.ArrayList(*Element).init(self.allocator);
+            defer growable.deinit();
+            for (self.children.items) |child| {
+                remaining_height -= child.rect.height;
+                if (child.vertical == .grow) {
+                    try growable.append(child);
                 }
             }
 
-            width_to_add = @min(width_to_add, remaining_width / @as(f32, @floatFromInt(growable.items.len)));
+            if (growable.items.len == 0) return;
 
-            for (growable.items) |child| {
-                if (child.rectangle.width == smallest.rectangle.width) {
-                    child.rectangle.width += width_to_add;
-                    remaining_width -= width_to_add;
+            if (self.direction == .left_to_right) {
+                for (growable.items) |child| {
+                    child.rect.height = self.rect.height - (self.padding.top + self.padding.bottom);
+                }
+                break :blk;
+            }
+
+            while (remaining_height > 0.01) {
+                // std.debug.print("{d:.6}, child: {s}\n", .{ remaining_height, self.id.? });
+                var smallest = growable.items[0].rect;
+                var second_smallest = default_second_smallest;
+
+                var width_to_add = remaining_height;
+
+                for (growable.items) |child| {
+                    if (child.rect.height < smallest.height) {
+                        second_smallest = smallest;
+                        smallest = child.rect;
+                    }
+                    if (child.rect.height > smallest.height) {
+                        second_smallest.height = @min(second_smallest.height, child.rect.height);
+                        width_to_add = second_smallest.height - smallest.height;
+                    }
+                }
+
+                width_to_add = @min(width_to_add, remaining_height / m.as(f32, growable.items.len));
+
+                for (growable.items) |child| {
+                    if (child.rect.height == smallest.height) {
+                        child.rect.height += width_to_add;
+                        remaining_height -= width_to_add;
+                    }
                 }
             }
+        }
+        for (self.children.items) |child| {
+            try child.calculateGrow();
         }
     }
 
     fn calculatePosition(self: *Element) void {
-        if (self.parent == null) {
-            self.rectangle.x = self.padding.right;
-            self.rectangle.y = self.padding.top;
-        }
-
         if (self.direction == .left_to_right) {
-            var x_offest = self.rectangle.x + self.padding.right;
-            // if (self.children.getLastOrNull()) |child| x_offest += child.padding.right;
+            var x_offest = self.rect.x + self.padding.left;
             for (self.children.items) |child| {
-                const y_offset = self.rectangle.y + child.padding.top;
-                child.rectangle.x = x_offest;
-                child.rectangle.y = y_offset;
-                x_offest += child.rectangle.width + self.child_gap;
+                const y_offset = self.rect.y + child.padding.top;
+                child.rect.x = x_offest;
+                child.rect.y = y_offset;
+                x_offest += child.rect.width + self.child_gap;
             }
         } else if (self.direction == .top_to_bottom) {
-            var y_offest = self.rectangle.y + self.padding.top;
-            // if (self.children.getLastOrNull()) |child| y_offest += child.padding.top;
+            var y_offest = self.rect.y + self.padding.top;
             for (self.children.items) |child| {
-                const x_offset = self.rectangle.x + self.padding.right;
-                child.rectangle.y = y_offest;
-                child.rectangle.x = x_offset;
-                y_offest += child.rectangle.height + self.child_gap;
+                const x_offset = self.rect.x + self.padding.left;
+                child.rect.y = y_offest;
+                child.rect.x = x_offset;
+                y_offest += child.rect.height + self.child_gap;
             }
+        }
+
+        for (self.children.items) |child| {
+            child.calculatePosition();
         }
     }
 
@@ -204,7 +286,7 @@ pub const Element = struct {
 
     pub fn update(self: *Element, window: *const rl.Window) !void {
         if (window.isResized()) {
-            self.calculateFit(window);
+            self.calcMinSize(window);
             try self.calculateGrow();
             self.calculatePosition();
         }
@@ -213,10 +295,10 @@ pub const Element = struct {
     pub fn draw(self: Element) void {
         if (self.background_color) |color| {
             rl.drawRectangle(
-                @intFromFloat(self.rectangle.x),
-                @intFromFloat(self.rectangle.y),
-                @intFromFloat(self.rectangle.width),
-                @intFromFloat(self.rectangle.height),
+                @intFromFloat(self.rect.x),
+                @intFromFloat(self.rect.y),
+                @intFromFloat(self.rect.width),
+                @intFromFloat(self.rect.height),
                 color,
             );
         }
