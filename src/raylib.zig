@@ -162,6 +162,67 @@ pub const Rectangle = extern struct {
     pub const zero = Rectangle{ .x = 0, .y = 0, .width = 0, .height = 0 };
 };
 
+/// Image, pixel data stored in CPU memory (RAM)
+pub const Image = extern struct {
+    /// Image raw data
+    data: *anyopaque,
+    /// Image base width
+    width: c_int,
+    /// Image base height
+    height: c_int,
+    /// Mipmap levels, 1 by default
+    mipmaps: c_int,
+    /// Data format (PixelFormat type)
+    format: c_int,
+};
+
+/// Texture, tex data stored in GPU memory (VRAM)
+pub const Texture = extern struct {
+    /// OpenGL texture id
+    id: c_uint,
+    /// Texture base width
+    width: c_int,
+    /// Texture base height
+    height: c_int,
+    /// Mipmap levels, 1 by default
+    mipmaps: c_int,
+    /// Data format (PixelFormat type)
+    format: c_int,
+};
+
+/// Texture2D, same as Texture
+pub const Texture2D = Texture;
+
+/// GlyphInfo, font characters glyphs info
+pub const GlyphInfo = extern struct {
+    /// Character value (Unicode)
+    value: c_int,
+    /// Character offset X when drawing
+    offsetX: c_int,
+    /// Character offset Y when drawing
+    offsetY: c_int,
+    /// Character advance position X
+    advanceX: c_int,
+    /// Character image data
+    image: Image,
+};
+
+/// Font, font texture and GlyphInfo array data
+const Font = extern struct {
+    /// Base size (default chars height)
+    baseSize: c_int,
+    /// Number of glyph characters
+    glyphCount: c_int,
+    /// Padding around the glyph characters
+    glyphPadding: c_int,
+    /// Texture atlas containing the glyphs
+    texture: Texture2D,
+    /// Rectangles in texture for the glyphs
+    recs: *Rectangle,
+    /// Glyphs info data
+    glyphs: *GlyphInfo,
+};
+
 /// Window-related struct
 pub const Window = struct {
     /// Initialize window and OpenGL context

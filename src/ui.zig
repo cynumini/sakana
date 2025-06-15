@@ -2,6 +2,16 @@ const std = @import("std");
 const rl = @import("raylib");
 const m = @import("math.zig");
 
+var font: rl.Font = undefined;
+const font_size = 64;
+
+pub const Colors = struct {
+    pub const background = rl.Color.getColor(0xc9a2cdff);
+    pub const element_background = rl.Color.getColor(0xd9bbdcff);
+    pub const border = rl.Color.getColor(0xe6d0e8ff);
+    pub const border_hower = rl.Color.getColor(0xae5b68ff);
+};
+
 pub const SizeMode = enum {
     fixed,
     fit,
@@ -137,7 +147,7 @@ pub const Element = struct {
         }
     }
 
-    fn calculateGrow(self: *Element) !void {
+    fn calcGrow(self: *Element) !void {
         if (self.children.items.len == 0) return;
 
         const default_second_smallest: rl.Rectangle = .{
@@ -216,11 +226,11 @@ pub const Element = struct {
         }
 
         for (self.children.items) |child| {
-            try child.calculateGrow();
+            try child.calcGrow();
         }
     }
 
-    fn calculatePosition(self: *Element) void {
+    fn calcPosition(self: *Element) void {
         if (self.direction == .left_to_right) {
             var x_offest = self.rect.x + self.padding.left;
             for (self.children.items) |child| {
@@ -240,7 +250,7 @@ pub const Element = struct {
         }
 
         for (self.children.items) |child| {
-            child.calculatePosition();
+            child.calcPosition();
         }
     }
 
@@ -252,8 +262,8 @@ pub const Element = struct {
     pub fn update(self: *Element, window: *const rl.Window) !void {
         if (window.isResized()) {
             self.calcMinSize(window);
-            try self.calculateGrow();
-            self.calculatePosition();
+            try self.calcGrow();
+            self.calcPosition();
         }
     }
 
@@ -276,21 +286,6 @@ pub const Element = struct {
 // const fontconfig = @import("fontconfig.zig");
 // const rl = @import("raylib.zig");
 //
-// const Self = @This();
-//
-// allocator: std.mem.Allocator,
-// combo_boxes: std.ArrayList(*ComboBox),
-// buttons: std.ArrayList(*Button),
-//
-// var font: rl.Font = undefined;
-// const font_size = 64;
-//
-// pub const Colors = struct {
-//     pub const background = rl.getColor(0xc9a2cdff);
-//     pub const element_background = rl.getColor(0xd9bbdcff);
-//     pub const border = rl.getColor(0xe6d0e8ff);
-//     pub const border_hower = rl.getColor(0xae5b68ff);
-// };
 //
 // // Must be initialized after raylib.initWindow()
 // pub fn init(allocator: std.mem.Allocator) !Self {
