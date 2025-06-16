@@ -1,9 +1,9 @@
 const std = @import("std");
 
 pub const ABI = struct {
-    // const c = @cImport({
-    //     @cInclude("raylib.h");
-    // });
+    const c = @cImport({
+        @cInclude("raylib.h");
+    });
 
     //----------------------------------------------------------------------------------
     // Enumerators Definition
@@ -61,6 +61,8 @@ pub const ABI = struct {
     // Text drawing functions
     /// Draw text (using default font)
     pub extern fn DrawText(text: [*c]const u8, posX: c_int, posY: c_int, fontSize: c_int, color: Color) void;
+    /// Measure string width for default font
+    pub extern fn MeasureText(text: [*c]const u8, fontSize: c_int) c_int;
 };
 
 /// Vector2, 2 components
@@ -319,4 +321,9 @@ pub fn drawText(text: []const u8, pos_x: i32, pos_y: i32, font_size: usize, colo
         @intCast(font_size),
         color,
     );
+}
+
+/// Measure string width for default font
+pub fn measureText(text: []const u8, font_size: usize) usize {
+    return @intCast(ABI.MeasureText(text.ptr, @intCast(font_size)));
 }
