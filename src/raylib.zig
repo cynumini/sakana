@@ -55,6 +55,8 @@ pub const ABI = struct {
     // Basic shapes drawing functions
     /// Draw a color-filled rectangle
     pub extern fn DrawRectangle(posX: c_int, posY: c_int, width: c_int, height: c_int, color: Color) void;
+    /// Draw rectangle outline with extended parameters
+    pub extern fn DrawRectangleLinesEx(rec: Rectangle, lineThick: f32, color: Color) void;
 
     // Text drawing functions
     /// Draw text (using default font)
@@ -303,7 +305,10 @@ pub fn drawRectangle(pos_x: i32, pos_y: i32, width: usize, height: usize, color:
         color,
     );
 }
-
+/// Draw rectangle outline with extended parameters
+pub fn drawRectangleLinesEx(rectangle: Rectangle, line_thick: f32, color: Color) void {
+    ABI.DrawRectangleLinesEx(rectangle, line_thick, color);
+}
 // Text drawing functions
 /// Draw text (using default font)
 pub fn drawText(text: []const u8, pos_x: i32, pos_y: i32, font_size: usize, color: Color) void {

@@ -52,6 +52,11 @@ pub const Padding = struct {
     }
 };
 
+pub const Border = struct {
+    width: usize = 1,
+    color: rl.Color = .black,
+};
+
 pub const Element = struct {
     allocator: std.mem.Allocator,
     id: ?[]const u8,
@@ -64,9 +69,10 @@ pub const Element = struct {
     child_gap: f32,
     horizontal: SizeMode,
     vertical: SizeMode,
-    min_size: rl.Vector2,
+    size: rl.Vector2,
     direction: Direction,
     background_color: ?rl.Color,
+    border: ?Border,
 
     pub fn init(args: struct {
         allocator: std.mem.Allocator,
@@ -75,9 +81,10 @@ pub const Element = struct {
         child_gap: f32 = 8,
         horizontal: SizeMode = .fit,
         vertical: SizeMode = .fit,
-        min_size: rl.Vector2 = rl.Vector2.zero,
+        size: rl.Vector2 = rl.Vector2.zero,
         direction: Direction = .left_to_right,
         background_color: ?rl.Color = null,
+        border: ?Border = null,
     }) !Element {
         return .{
             .allocator = args.allocator,
@@ -88,9 +95,10 @@ pub const Element = struct {
             .child_gap = args.child_gap,
             .horizontal = args.horizontal,
             .vertical = args.vertical,
-            .min_size = args.min_size,
+            .size = args.size,
             .direction = args.direction,
             .background_color = args.background_color,
+            .border = args.border,
         };
     }
 
@@ -99,8 +107,14 @@ pub const Element = struct {
     }
 
     fn calcMinSize(self: *Element, window: *const rl.Window) void {
-        self.rect.width = self.padding.left + self.padding.right + self.min_size.x;
-        self.rect.height = self.padding.top + self.padding.bottom + self.min_size.y;
+        self.rect.width = self.padding.left + self.padding.right + self.size.x;
+        self.rect.height = self.padding.top + self.padding.bottom + self.size.y;
+
+        if (self.border) |border| {
+            self.rect.width += @floatFromInt(border.width);
+            self.rect.height += @floatFromInt(border.width);
+            std.debug.print("{s} {any} {d:.2}\n", .{ self.id.?, self.rect, border.width });
+        }
 
         for (self.children.items) |child| child.calcMinSize(window);
 
@@ -170,6 +184,7 @@ pub const Element = struct {
                     remaining -= @field(self.padding, side);
                 }
                 remaining -= m.as(f32, self.children.items.len - 1) * self.child_gap;
+                if (self.border) |border| remaining -= @floatFromInt(border.width * 2);
 
                 var growable = std.ArrayList(*Element).init(self.allocator);
                 defer growable.deinit();
@@ -188,6 +203,9 @@ pub const Element = struct {
                         @field(child.rect, dimension) = @field(self.rect, dimension);
                         inline for (sides) |side| {
                             @field(child.rect, dimension) -= @field(self.padding, side);
+                        }
+                        if (self.border) |border| {
+                            @field(child.rect, dimension) -= @floatFromInt(border.width * 2);
                         }
                     }
                     break :blk;
@@ -232,20 +250,24 @@ pub const Element = struct {
 
     fn calcPosition(self: *Element) void {
         if (self.direction == .left_to_right) {
-            var x_offest = self.rect.x + self.padding.left;
+            var x_offset = self.rect.x + self.padding.left;
+            if (self.border) |border| x_offset += @floatFromInt(border.width);
             for (self.children.items) |child| {
-                const y_offset = self.rect.y + child.padding.top;
-                child.rect.x = x_offest;
+                var y_offset = self.rect.y + child.padding.top;
+                if (self.border) |border| y_offset += @floatFromInt(border.width);
+                child.rect.x = x_offset;
                 child.rect.y = y_offset;
-                x_offest += child.rect.width + self.child_gap;
+                x_offset += child.rect.width + self.child_gap;
             }
         } else if (self.direction == .top_to_bottom) {
-            var y_offest = self.rect.y + self.padding.top;
+            var y_offset = self.rect.y + self.padding.top;
+            if (self.border) |border| y_offset += @floatFromInt(border.width);
             for (self.children.items) |child| {
-                const x_offset = self.rect.x + self.padding.left;
-                child.rect.y = y_offest;
+                var x_offset = self.rect.x + self.padding.left;
+                if (self.border) |border| x_offset += @floatFromInt(border.width);
+                child.rect.y = y_offset;
                 child.rect.x = x_offset;
-                y_offest += child.rect.height + self.child_gap;
+                y_offset += child.rect.height + self.child_gap;
             }
         }
 
@@ -276,6 +298,9 @@ pub const Element = struct {
                 @intFromFloat(self.rect.height),
                 color,
             );
+            if (self.border) |border| {
+                rl.drawRectangleLinesEx(self.rect, @floatFromInt(border.width), border.color);
+            }
         }
         for (self.children.items) |child| {
             child.draw();
