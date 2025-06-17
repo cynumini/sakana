@@ -45,18 +45,25 @@ pub fn build(b: *std.Build) void {
     });
 
     if (options.raylib.include) {
-        const raylib_dependency = b.dependency("raylib", .{
+        const raylib_dep = b.dependency("raylib", .{
             .target = target,
             .optimize = optimize,
             .linux_display_backend = options.raylib.linux_display_backend,
         });
 
-        lib.linkLibrary(raylib_dependency.artifact("raylib"));
+        lib.linkLibrary(raylib_dep.artifact("raylib"));
+
+        const raylib_c_mod = b.addTranslateC(.{
+            .root_source_file = raylib_dep.path("src/raylib.h"),
+            .target = target,
+            .optimize = optimize,
+        }).createModule();
 
         const raylib_mod = b.addModule("raylib", .{
             .target = target,
             .optimize = optimize,
             .root_source_file = b.path("src/raylib.zig"),
+            .imports = &.{.{ .name = "raylib_c", .module = raylib_c_mod }},
         });
 
         _ = b.addModule("ui", .{
