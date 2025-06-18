@@ -53,25 +53,26 @@ pub fn build(b: *std.Build) void {
 
         lib.linkLibrary(raylib_dep.artifact("raylib"));
 
-        const raylib_c_mod = b.addTranslateC(.{
-            .root_source_file = raylib_dep.path("src/raylib.h"),
+        const raylib_c = b.addTranslateC(.{
+            .root_source_file = b.path("src/raylib.c"),
             .target = target,
             .optimize = optimize,
-        }).createModule();
+        });
+
+        raylib_c.addIncludePath(raylib_dep.path("src"));
 
         const raylib_mod = b.addModule("raylib", .{
             .target = target,
             .optimize = optimize,
             .root_source_file = b.path("src/raylib.zig"),
-            .imports = &.{.{ .name = "raylib_c", .module = raylib_c_mod }},
+            .imports = &.{
+                .{ .name = "raylib_c", .module = raylib_c.createModule() },
+                .{ .name = "sakana", .module = mod },
+            },
         });
 
-        _ = b.addModule("ui", .{
-            .target = target,
-            .optimize = optimize,
-            .root_source_file = b.path("src/ui.zig"),
-            .imports = &.{.{ .name = "raylib", .module = raylib_mod }},
-        });
+        mod.addImport("raylib", raylib_mod);
+
     }
 
     if (options.fontconfig) {
