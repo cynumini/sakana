@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const c = @import("raylib_c");
-const Backend = @import("sakana").ui.Backend;
+const Backend = @import("sakana").user_interface.Backend;
 
 // cdef -----------------------------------------------------------------------
 /// Since I want extend stuct, any function that will use this extand struct,
@@ -27,6 +27,7 @@ const ABI = struct {
     };
 
     pub extern fn ClearBackground(color: Color) void; // 730
+    pub extern fn DrawRectangleRec(rec: Rectangle, color: Color) void; // 909
 };
 // Adaptations ----------------------------------------------------------------
 /// Vector2, 2 components
@@ -35,6 +36,8 @@ pub const Vector2 = extern struct { // 66
     x: f32,
     /// Vector y component
     y: f32,
+
+    pub const zero = Vector2{.x = 0, .y = 0};
 };
 /// Color, 4 components, R8G8B8A8 (32bit)
 pub const Color = extern struct { // 104
@@ -215,6 +218,11 @@ pub fn endDrawing() void {
 pub fn setConfigFlags(flags: ConfigFlags) void {
     c.SetConfigFlags(flags.toC());
 }
+/// Draw a color-filled rectangle
+pub fn drawRectangleRec(rec: Rectangle, color: Color) void {
+    ABI.DrawRectangleRec(rec, color);
+}
+
 /// UI backend ----------------------------------------------------------------
 pub const RaylibUIBackend = struct {
     pub fn backend(self: *RaylibUIBackend) Backend {
@@ -224,6 +232,7 @@ pub const RaylibUIBackend = struct {
                 .isResized = isResized,
                 .getWidth = getWidth,
                 .getHeight = getHeight,
+                .drawRectangle = drawRectangle,
             },
         };
     }
@@ -236,5 +245,8 @@ pub const RaylibUIBackend = struct {
     }
     fn getHeight(_: *anyopaque) f32 {
         return @floatFromInt(getScreenHeight());
+    }
+    fn drawRectangle(_: *anyopaque, rect: Rectangle, color: Color) void {
+        drawRectangleRec(rect, color);
     }
 };

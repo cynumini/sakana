@@ -1,3 +1,5 @@
+const rl = @import("raylib");
+
 pub const Self = @This();
 
 ptr: *anyopaque,
@@ -7,6 +9,7 @@ pub const VTable = struct {
     isResized: *const fn (*anyopaque) bool,
     getWidth: *const fn (*anyopaque) f32,
     getHeight: *const fn (*anyopaque) f32,
+    drawRectangle: *const fn (*anyopaque, rl.Rectangle, rl.Color) void,
 };
 
 pub fn isResized(self: Self) bool {
@@ -19,4 +22,8 @@ pub fn getWidth(self: Self) f32 {
 
 pub fn getHeight(self: Self) f32 {
     return self.vtable.getHeight(self.ptr);
+}
+
+pub fn drawRectangle(self: Self, rect: rl.Rectangle, color: rl.Color) void {
+    self.vtable.drawRectangle(self.ptr, rect, color);
 }
