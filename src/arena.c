@@ -29,3 +29,19 @@ void *arena_push_zero(Arena *arena, size_t size)
     memset(data, 0, size);
     return data;
 }
+
+size_t arena_quick_save(Arena *arena)
+{
+    return arena->position;
+}
+
+void arena_quick_load(Arena *arena, size_t save)
+{
+    if (save == arena->position)
+    {
+        return;
+    }
+    size_t diff = arena->position - save;
+    arena->position = save;
+    arena->size -= diff;
+}
