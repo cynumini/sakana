@@ -1,9 +1,8 @@
 #include <SKN/filesystem.h>
+
 #include <assert.h>
 #include <stdio.h>
 
-// Reads the entire file and returns its contents as text.
-// The caller must free the returned value.
 char *read_text(Arena *arena, const char *path)
 {
     FILE *file = fopen(path, "r");

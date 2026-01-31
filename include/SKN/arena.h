@@ -1,22 +1,21 @@
 #ifndef SKN_ARENA_H
 #define SKN_ARENA_H
 
-#include <stddef.h>
-#include <stdint.h>
+#include "types.h"
 
 typedef struct Arena
 {
-    uint8_t *data;
-    size_t position;
-    size_t size;
+    u8 *data;
+    usize position;
+    usize size;
 } Arena;
 
-Arena arena_create(size_t size);
+Arena arena_create(usize size);
 void arena_destroy(Arena *arena);
-void *arena_push(Arena *arena, size_t size);
-void *arena_push_zero(Arena *arena, size_t size);
-size_t arena_quick_save(Arena *arena);
-void arena_quick_load(Arena *arena, size_t save);
+void *arena_push(Arena *arena, usize size);
+void *arena_push_zero(Arena *arena, usize size);
+usize arena_quick_save(Arena *arena);
+void arena_quick_load(Arena *arena, usize save);
 
 #define ARENA_PUSH_STRUCT(ARENA, TYPE) (TYPE *)arena_push(ARENA, sizeof(TYPE))
 #define ARENA_PUSH_STRUCT_ZERO(ARENA, TYPE) (TYPE *)arena_push_zero(ARENA, sizeof(TYPE))
