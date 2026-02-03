@@ -18,3 +18,11 @@ char *read_text(Arena *arena, const char *path)
     buffer[size] = '\0';
     return buffer;
 }
+
+void write_text(const char *path, const char *text)
+{
+    FILE *file = fopen(path, "w");
+    assert(file);
+    assert(fputs(text, file) >= 0);
+    assert(fclose(file) == 0);
+}

@@ -7,15 +7,24 @@ typedef struct Arena
 {
     u8 *data;
     usize position;
+    usize next_position;
     usize size;
 } Arena;
+
+typedef struct ArenaSave
+{
+    usize position;
+    usize next_position;
+} ArenaSave;
 
 Arena arena_create(usize size);
 void arena_destroy(Arena *arena);
 void *arena_push(Arena *arena, usize size);
 void *arena_push_zero(Arena *arena, usize size);
-usize arena_quick_save(Arena *arena);
-void arena_quick_load(Arena *arena, usize save);
+void *arena_realloc(Arena *arena, void *p, usize old_size, usize new_size);
+ArenaSave arena_quick_save(Arena *arena);
+void arena_quick_load(Arena *arena, ArenaSave save);
+char *arena_strdup(Arena *arena, const char *src);
 
 #define ARENA_PUSH_STRUCT(ARENA, TYPE) (TYPE *)arena_push(ARENA, sizeof(TYPE))
 #define ARENA_PUSH_STRUCT_ZERO(ARENA, TYPE) (TYPE *)arena_push_zero(ARENA, sizeof(TYPE))

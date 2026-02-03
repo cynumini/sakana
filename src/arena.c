@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "SKN/arena.h"
 
@@ -16,11 +17,10 @@ void arena_destroy(Arena *arena)
 
 void *arena_push(Arena *arena, usize size)
 {
-    usize next_position = arena->position + size;
-    assert(next_position <= arena->size);
-    usize position = arena->position;
-    arena->position = next_position;
-    return (void *)(arena->data + position);
+    arena->position = arena->next_position;
+    arena->next_position = arena->position + size;
+    assert(arena->next_position <= arena->size);
+    return (void *)(arena->data + arena->position);
 }
 
 void *arena_push_zero(Arena *arena, usize size)
@@ -30,18 +30,40 @@ void *arena_push_zero(Arena *arena, usize size)
     return data;
 }
 
-usize arena_quick_save(Arena *arena)
+void *arena_realloc(Arena *arena, void *p, usize old_size, usize new_size)
 {
-    return arena->position;
+    if (p == NULL)
+    {
+        return arena_push(arena, new_size);
+    }
+    else if (p == (void *)(arena->data + arena->position))
+    {
+        arena->next_position = arena->position + new_size;
+        return p;
+    }
+    else
+    {
+        void *new_p = arena_push(arena, new_size);
+        memcpy(new_p, p, old_size);
+        return new_p;
+    }
 }
 
-void arena_quick_load(Arena *arena, usize save)
+ArenaSave arena_quick_save(Arena *arena)
 {
-    if (save == arena->position)
-    {
-        return;
-    }
-    usize diff = arena->position - save;
-    arena->position = save;
-    arena->size -= diff;
+    return (ArenaSave){arena->position, arena->next_position};
+}
+
+void arena_quick_load(Arena *arena, ArenaSave save)
+{
+    arena->position = save.position;
+    arena->next_position = save.next_position;
+}
+
+char *arena_strdup(Arena *arena, const char *src)
+{
+    usize size = strlen(src);
+    char *dest = arena_push(arena, size);
+    strcpy(dest, src);
+    return dest;
 }

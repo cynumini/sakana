@@ -7,7 +7,7 @@ objects = $(addprefix ./out/,filesystem.o arena.o)
 
 ./out/%.o: ./src/%.c
 	-mkdir -p ./out
-	$(CC) -c -Iinclude $< -o $@
+	$(CC) -g -c -Iinclude $< -o $@
 
 .PHONY: clean
 
