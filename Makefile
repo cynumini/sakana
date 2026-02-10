@@ -1,6 +1,6 @@
 warnings = -Wall -Wpedantic -Wextra -Werror
 
-objects = $(addprefix ./out/,filesystem.o arena.o)
+objects = $(addprefix ./out/,filesystem.o arena.o elo.o)
 
 ./out/libsakana.a: $(objects)
 	$(AR) -rc $@ $^
