@@ -25,6 +25,7 @@ void *arena_realloc(Arena *arena, void *p, usize old_size, usize new_size);
 ArenaSave arena_quick_save(Arena *arena);
 void arena_quick_load(Arena *arena, ArenaSave save);
 char *arena_strdup(Arena *arena, const char *src);
+char *arena_strndup(Arena *arena, const char *src, usize len);
 
 #define ARENA_PUSH_STRUCT(ARENA, TYPE) (TYPE *)arena_push(ARENA, sizeof(TYPE))
 #define ARENA_PUSH_STRUCT_ZERO(ARENA, TYPE) (TYPE *)arena_push_zero(ARENA, sizeof(TYPE))

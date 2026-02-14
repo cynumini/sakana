@@ -62,8 +62,15 @@ void arena_quick_load(Arena *arena, ArenaSave save)
 
 char *arena_strdup(Arena *arena, const char *src)
 {
-    usize size = strlen(src);
-    char *dest = arena_push(arena, size + 1);
+    usize len = strlen(src);
+    char *dest = arena_push(arena, len + 1);
     strcpy(dest, src);
+    return dest;
+}
+
+char *arena_strndup(Arena *arena, const char *src, usize len)
+{
+    char *dest = arena_push_zero(arena, len + 1);
+    memcpy(dest, src, len);
     return dest;
 }
