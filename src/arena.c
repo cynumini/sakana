@@ -5,6 +5,10 @@
 
 #include "SKN/arena.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 Arena arena_create(usize size)
 {
     return (Arena){.data = malloc(size), .size = size};
@@ -74,3 +78,7 @@ char *arena_strndup(Arena *arena, const char *src, usize len)
     memcpy(dest, src, len);
     return dest;
 }
+
+#ifdef __cplusplus
+}
+#endif

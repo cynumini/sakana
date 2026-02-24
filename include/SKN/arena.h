@@ -3,6 +3,10 @@
 
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct Arena
 {
     u8 *data;
@@ -33,5 +37,9 @@ char *arena_strndup(Arena *arena, const char *src, usize len);
 #define KB(VALUE) (VALUE << 10)
 #define MB(VALUE) (KB(VALUE) << 10)
 #define GB(VALUE) (MB(VALUE) << 10)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* end of include guard: SKN_ARENA_H */
