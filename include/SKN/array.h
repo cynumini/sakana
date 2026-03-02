@@ -24,20 +24,25 @@
 
 // ARRAY must be pointer
 #define DYNAMIC_ARRAY_ADD(ARENA, ARRAY, VALUE)                                                                         \
+    do                                                                                                                 \
     {                                                                                                                  \
         usize index = (ARRAY)->len;                                                                                    \
         if (index >= (ARRAY)->capacity)                                                                                \
         {                                                                                                              \
             if ((ARRAY)->capacity == 0)                                                                                \
+            {                                                                                                          \
                 (ARRAY)->capacity = 8;                                                                                 \
+            }                                                                                                          \
             else                                                                                                       \
+            {                                                                                                          \
                 (ARRAY)->capacity *= 2;                                                                                \
+            }                                                                                                          \
             (ARRAY)->items = arena_realloc(ARRAY, (ARRAY)->items, sizeof(VALUE) * (ARRAY)->index,                      \
                                            sizeof(VALUE) * (ARRAY)->capacity);                                         \
         }                                                                                                              \
         (ARRAY)->items[index] = VALUE;                                                                                 \
         (ARRAY)->len++;                                                                                                \
-    }
+    } while (0)
 
 #define DYNAMIC_ARRAY_IMPL_ADD(ARRAY_TYPE, TYPE, NAME)                                                                 \
     static void NAME(Arena *arena, ARRAY_TYPE *array, TYPE value)                                                      \
