@@ -130,7 +130,7 @@ pub const Strategy = union(enum) { ranks: usize, promos: void, player: struct {
 } };
 
 gpa: std.mem.Allocator,
-players: std.ArrayList(Player) = .empty,
+players: []Player,
 actions: std.ArrayList(Action) = .empty,
 current_data: std.ArrayList(Data) = .empty,
 result: std.AutoHashMap(usize, Data),
@@ -146,7 +146,7 @@ fn getDefaultPrng(io: std.Io) std.Random.DefaultPrng {
 pub fn init(
     gpa: std.mem.Allocator,
     io: std.Io,
-    players: std.ArrayList(Player),
+    players: []Player,
     strategy: Strategy,
 ) !Self {
     var self = Self{
@@ -157,8 +157,8 @@ pub fn init(
         .strategy = strategy,
     };
 
-    try self.current_data.ensureTotalCapacity(gpa, self.players.items.len);
-    for (self.players.items) |player| {
+    try self.current_data.ensureTotalCapacity(gpa, self.players.len);
+    for (self.players) |player| {
         try self.current_data.append(
             gpa,
             .{ .elo = player.elo, .rank = player.rank },
@@ -168,22 +168,21 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
-    self.players.deinit(self.gpa);
     self.actions.deinit(self.gpa);
     self.current_data.deinit(self.gpa);
     self.result.deinit();
 }
 
 pub fn getId(self: *const Self, index: usize) usize {
-    return self.players.items[index].id;
+    return self.players[index].id;
 }
 
 pub fn getInitElo(self: *const Self, index: usize) u32 {
-    return self.players.items[index].elo;
+    return self.players[index].elo;
 }
 
 pub fn getInitRank(self: *const Self, index: usize) Rank {
-    return self.players.items[index].rank;
+    return self.players[index].rank;
 }
 
 pub fn getData(self: *const Self, index: usize) Data {
@@ -213,7 +212,7 @@ pub fn setRank(self: *Self, index: usize, value: Rank) !void {
 fn getPlayersByRank(self: *const Self, rank: Rank) !std.ArrayList(usize) {
     var players: std.ArrayList(usize) = .empty;
 
-    for (0..self.players.items.len) |index| {
+    for (0..self.players.len) |index| {
         if (self.getRank(index) == rank) try players.append(self.gpa, index);
     }
 
@@ -223,7 +222,7 @@ fn getPlayersByRank(self: *const Self, rank: Rank) !std.ArrayList(usize) {
 fn getBetterPlayers(self: *const Self, elo: usize) !std.ArrayList(usize) {
     var players: std.ArrayList(usize) = .empty;
 
-    for (0..self.players.items.len) |index| {
+    for (0..self.players.len) |index| {
         if (self.getElo(index) > elo) try players.append(self.gpa, index);
     }
 
@@ -231,12 +230,12 @@ fn getBetterPlayers(self: *const Self, elo: usize) !std.ArrayList(usize) {
 }
 
 fn getStronger(self: *Self, self_index: usize, possible_players: []const usize) ?usize {
-    const self_elo = self.players.items[self_index].elo;
+    const self_elo = self.players[self_index].elo;
     var stronger_index: ?usize = null;
     var stronger_elo: usize = std.math.maxInt(u32);
     for (possible_players) |index| {
         if (index == self_index) continue;
-        const elo = self.players.items[index].elo;
+        const elo = self.players[index].elo;
         if (elo > self_elo and elo <= stronger_elo) {
             stronger_index = index;
             stronger_elo = elo;
@@ -246,12 +245,12 @@ fn getStronger(self: *Self, self_index: usize, possible_players: []const usize) 
 }
 
 fn getWeaker(self: *Self, self_index: usize, possible_players: []const usize) ?usize {
-    const self_elo = self.players.items[self_index].elo;
+    const self_elo = self.players[self_index].elo;
     var weaker_index: ?usize = null;
     var weaker_elo: usize = 0;
     for (possible_players) |index| {
         if (index == self_index) continue;
-        const elo = self.players.items[index].elo;
+        const elo = self.players[index].elo;
         if (elo <= self_elo and elo >= weaker_elo) {
             weaker_index = index;
             weaker_elo = elo;
@@ -354,7 +353,7 @@ fn generatePromos(self: *Self) !void {
 }
 
 fn getIndexFromId(self: *const Self, id: usize) ?usize {
-    for (0.., self.players.items) |index, player| {
+    for (0.., self.players) |index, player| {
         if (player.id == id) {
             return index;
         }
@@ -468,7 +467,7 @@ fn addUnique(array: *std.ArrayList(usize), gpa: std.mem.Allocator, value: usize)
     }
 }
 
-pub fn getChosenIds(self: *Self, gpa: std.mem.Allocator) !std.ArrayList(usize) {
+pub fn getChosenIds(self: *Self, gpa: std.mem.Allocator, include_promos: bool) !std.ArrayList(usize) {
     var result = std.ArrayList(usize).empty;
     for (self.actions.items) |action| {
         switch (action) {
@@ -477,12 +476,13 @@ pub fn getChosenIds(self: *Self, gpa: std.mem.Allocator) !std.ArrayList(usize) {
                 try addUnique(&result, gpa, self.getId(value.player2));
             },
             .promotion => |value| {
-                try addUnique(&result, gpa, self.getId(value.player));
+                if (include_promos) {
+                    try addUnique(&result, gpa, self.getId(value.player));
+                }
             },
             else => {},
         }
     }
-    std.mem.sort(usize, result.items, {}, std.sort.asc(usize));
     return result;
 }
 
@@ -496,12 +496,12 @@ pub fn printAction(self: *Self, action: Action) void {
     switch (action) {
         .rank => |value| std.debug.print("{}\n", .{value}),
         .promotion => |value| {
-            const p = self.players.items[value.player];
+            const p = self.players[value.player];
             std.debug.print("{} from {} to {}\n", .{ p, value.from, value.to });
         },
         .match => |value| {
-            const p1 = self.players.items[value.player1];
-            const p2 = self.players.items[value.player2];
+            const p1 = self.players[value.player1];
+            const p2 = self.players[value.player2];
             std.debug.print("{} vs  {}\n", .{ p1, p2 });
         },
     }
