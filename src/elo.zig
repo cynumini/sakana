@@ -103,6 +103,16 @@ pub const Rank = enum {
     pub fn getPrev(self: Rank) Rank {
         return @enumFromInt(@intFromEnum(self) - 1);
     }
+
+    pub const MaxLeagueLen = blk: {
+        var len: usize = 0;
+        for (@typeInfo(Rank).@"enum".fields) |field| {
+            const rank: Rank = @enumFromInt(field.value);
+            if (rank == .unranked) continue;
+            len += rank.max();
+        }
+        break :blk len;
+    };
 };
 
 const Data = struct {
