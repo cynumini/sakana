@@ -36,6 +36,7 @@ void sakanaDeinit(App app);
 typedef int32_t i32;
 typedef uint8_t u8;
 typedef size_t usize;
+typedef uint32_t u32;
 
 struct SliceU8 {
     u8 *ptr;
