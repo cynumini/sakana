@@ -1,7 +1,7 @@
 #include <sakana/sakana.hpp>
 
-#include "../build/shader.frag.spv.hpp"
-#include "../build/shader.vert.spv.hpp"
+#include "../build/shader.frag.cpp"
+#include "../build/shader.vert.cpp"
 
 App sakanaInit(const char *name, const char *version, const char *identifier) {
     SDL_SetLogPriorities(SDL_LOG_PRIORITY_VERBOSE);

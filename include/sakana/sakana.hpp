@@ -1,6 +1,8 @@
 #ifndef SAKANA_HPP
 #define SAKANA_HPP
 
+#include <stdint.h>
+
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3_image/SDL_image.h>
@@ -30,5 +32,19 @@ struct App {
 
 App sakanaInit(const char *name, const char *version, const char *identifier);
 void sakanaDeinit(App app);
+
+typedef int32_t i32;
+typedef uint8_t u8;
+typedef size_t usize;
+
+struct SliceU8 {
+    u8 *ptr;
+    usize len;
+};
+
+struct SliceConstU8 {
+    const u8 *ptr;
+    usize len;
+};
 
 #endif // SAKANA_HPP

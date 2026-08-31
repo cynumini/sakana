@@ -24,7 +24,7 @@ build/sakana.o: src/sakana.cpp include/sakana/sakana.hpp $(SHADER_SRC) compile_f
 	clang++ -c src/sakana.cpp -o $@ $(FLAGS) -g
 
 build/libsakana.a: build/sakana.o
-	ar rcs $@ $<
+		ar rcs $@ $<
 
 tidy:
 	clang-tidy src/sakana.cpp
