@@ -1,9 +1,18 @@
-#include <sakana/sakana.hpp>
+#ifndef UNAGI_CPP
+#define UNAGI_CPP
 
-#include "../build/shader.frag.cpp"
-#include "../build/shader.vert.cpp"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 
-App sakanaInit(const char *name, const char *version, const char *identifier) {
+typedef SDL_FPoint vec2;
+
+struct App {
+    SDL_Window *window;
+    SDL_GPUDevice *device;
+    vec2 screen;
+};
+
+static App sakanaInit(const char *name, const char *version, const char *identifier) {
     SDL_SetLogPriorities(SDL_LOG_PRIORITY_VERBOSE);
     SDL_assert(SDL_SetAppMetadata(name, version, identifier));
     SDL_assert(SDL_Init(SDL_INIT_VIDEO));
@@ -18,13 +27,14 @@ App sakanaInit(const char *name, const char *version, const char *identifier) {
 
     SDL_assert(SDL_ClaimWindowForGPUDevice(device, window));
 
-
     return {.window = window, .device = device, .screen = screen};
 }
 
-void sakanaDeinit(App app) {
+static void sakanaDeinit(App app) {
     SDL_ReleaseWindowFromGPUDevice(app.device, app.window);
     SDL_DestroyGPUDevice(app.device);
     SDL_DestroyWindow(app.window);
     SDL_Quit();
 }
+
+#endif // UNAGI_CPP

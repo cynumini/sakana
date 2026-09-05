@@ -17,6 +17,7 @@ Checks: >
   -google-explicit-constructor,
   -google-readability-casting,modernize-avoid-c-style-cast,
   -google-readability-todo,
+  -google-runtime-int,
   -hicpp-*,
   -llvm-header-guard,
   -llvm-qualified-auto,
