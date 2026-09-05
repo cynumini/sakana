@@ -24,20 +24,20 @@ static bool needsUpdate(const char *output, const char *input) {
     return input_time > getModifiedTime(output);
 }
 
-// static bool needsUpdate(const char *output, const char *const inputs[]) {
-//     const auto output_time = getModifiedTime(output);
-//     for (const char *const *input = inputs; *input != 0; ++input) {
-//         auto input_time = getModifiedTime(*input);
-//         if (input_time == 0) {
-//             printf("error: file %s dosen't exist\n", *input);
-//             abort();
-//         }
-//         if (input_time > output_time) {
-//             return true;
-//         }
-//     }
-//     return false;
-// }
+static bool needsUpdate(const char *output, const char *const inputs[]) {
+    const auto output_time = getModifiedTime(output);
+    for (const char *const *input = inputs; *input != 0; ++input) {
+        auto input_time = getModifiedTime(*input);
+        if (input_time == 0) {
+            printf("error: file %s dosen't exist\n", *input);
+            abort();
+        }
+        if (input_time > output_time) {
+            return true;
+        }
+    }
+    return false;
+}
 
 const usize ARGS_CAPACITY = 1U << 4U;
 
@@ -60,8 +60,8 @@ static void run(Args args) {
     auto pid = fork();
     assert(pid != -1);
     if (pid == 0) {
-       runReplace(args);
-       _exit(1);
+        runReplace(args);
+        _exit(1);
     } else {
         i32 status = 0;
         wait(&status);
@@ -94,11 +94,10 @@ static void rebuildAndRestartOnChanges(i32 argc, const char *argv[]) {
         Args b_args{};
         addArg(&b_args, bin_filename);
         runReplace(b_args);
-
     }
 }
 
-static void glslc(const char *input, const char *output) {
+static const char *glslc(const char *input, const char *output) {
     if (needsUpdate(output, input)) {
         Args args{};
         addArg(&args, "glslc");
@@ -107,6 +106,7 @@ static void glslc(const char *input, const char *output) {
         addArg(&args, output);
         run(args);
     }
+    return output;
 }
 
 static void addArgsFromCompileFlags(Args *args, SliceU8 compile_flags) {
@@ -140,36 +140,45 @@ static SliceU8 loadFile(const char *filename) {
     return SliceU8{data, n};
 }
 
-// static void binToHpp(const char *input, const char *output, const char *var_name) {
-//     if (needsUpdate(output, input)) {
-//         printf("generate %s from %s\n", output, input);
+static const char *binToHpp(const char *input, const char *output, const char *var_name) {
+    if (needsUpdate(output, input)) {
+        printf("generate %s from %s\n", output, input);
 
-//         auto data = loadFile(input);
-//         defer(free(data.ptr));
+        auto data = loadFile(input);
+        defer(free(data.ptr));
 
-//         auto *stream = fopen(output, "w");
-//         assert(stream);
-//         defer(assert(fclose(stream) == 0));
+        auto *stream = fopen(output, "w");
+        assert(stream);
+        defer(assert(fclose(stream) == 0));
 
-//         assert(fprintf(stream, "#include <sakana/sakana.hpp>\n\n") >= 0);
-//         assert(fprintf(stream, "const u8 %s_raw[] = {\n    ", var_name) >= 0);
+        assert(fprintf(stream, "#include <sakana.cpp>\n\n") >= 0);
+        assert(fprintf(stream, "const u8 %s_raw[] = {\n    ", var_name) >= 0);
 
-//         for (usize i = 0; i < data.len; i++) {
-//             if (i == 0) {
-//                 assert(fprintf(stream, "0x%02x,", data.ptr[i]) >= 0);
-//             } else {
-//                 if (i % 15 == 0) {
-//                     assert(fprintf(stream, "\n   ") >= 0);
-//                 }
-//                 assert(fprintf(stream, " 0x%02x", data.ptr[i]) >= 0);
-//                 if (i < data.len) {
-//                     assert(fprintf(stream, ",") >= 0);
-//                 }
-//             }
-//         }
+        for (usize i = 0; i < data.len; i++) {
+            if (i == 0) {
+                assert(fprintf(stream, "0x%02x,", data.ptr[i]) >= 0);
+            } else {
+                if (i % 15 == 0) {
+                    assert(fprintf(stream, "\n   ") >= 0);
+                }
+                assert(fprintf(stream, " 0x%02x", data.ptr[i]) >= 0);
+                if (i < data.len) {
+                    assert(fprintf(stream, ",") >= 0);
+                }
+            }
+        }
 
-//         assert(fprintf(stream, "\n};\n") >= 0);
-//         assert(fprintf(stream, "const SliceConstU8 %s = {.ptr = %s_raw, .len = %zu};", var_name,
-//                        var_name, data.len) >= 0);
-//     }
-// }
+        assert(fprintf(stream, "\n};\n") >= 0);
+        assert(fprintf(stream, "const SliceConstU8 %s = {.ptr = %s_raw, .len = %zu};", var_name,
+                       var_name, data.len) >= 0);
+    }
+
+    return output;
+}
+
+static const char *glslcHpp(const char *input, const char *output, const char *var_name) {
+    const usize BUFFER_SIZE = 1U << 5U; // 2 ^ 3 = 32
+    char buffer[BUFFER_SIZE] = {};
+    assert((usize)snprintf(buffer, BUFFER_SIZE, "%s.spv", output) < BUFFER_SIZE);
+    return binToHpp(glslc(input, buffer), output, var_name);
+}
