@@ -44,13 +44,8 @@ static_assert(sizeof(u64) == 8);
 static_assert(sizeof(f32) == 4);
 static_assert(sizeof(f64) == 8);
 
-struct SliceU8 {
-    u8 *ptr;
-    usize len;
-};
-
-struct SliceConstU8 {
-    const u8 *ptr;
+template <typename T> struct Slice {
+    T *ptr;
     usize len;
 };
 

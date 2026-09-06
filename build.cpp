@@ -169,7 +169,7 @@ static const char *binToHpp(const char *input, const char *output, const char *v
         }
 
         assert(fprintf(stream, "\n};\n") >= 0);
-        assert(fprintf(stream, "const SliceConstU8 %s = {.ptr = %s_raw, .len = %zu};", var_name,
+        assert(fprintf(stream, "const Slice<const u8> %s = {.ptr = %s_raw, .len = %zu};", var_name,
                        var_name, data.len) >= 0);
     }
 
