@@ -8,17 +8,19 @@
 #include <SDL3_image/SDL_image.h>
 
 typedef SDL_FPoint vec2;
-typedef SDL_FColor Color;
+typedef SDL_FColor FColor;
+typedef SDL_Color Color;
 
-const Color BLACK = {1.0F, 1.0F, 1.0F, 1.0F};
-const Color RED = {1.0F, 0.0F, 0.0F, 1.0F};
-const Color WHITE = {1.0F, 1.0F, 1.0F, 1.0F};
-const Color GREY = {0.5F, 0.5F, 0.5F, 1.0F};
+const FColor BLACK = {1.0F, 1.0F, 1.0F, 1.0F};
+const FColor RED = {1.0F, 0.0F, 0.0F, 1.0F};
+const FColor WHITE = {1.0F, 1.0F, 1.0F, 1.0F};
+const FColor GREY = {0.5F, 0.5F, 0.5F, 1.0F};
 
 struct App {
     SDL_Window *window;
     SDL_GPUDevice *device;
     SDL_GPUSampler *sampler;
+    SDL_GPUTexture *default_texture;
     vec2 screen;
     bool running;
 };
@@ -40,19 +42,57 @@ static App unagiInit(const char *name, const char *version, const char *identifi
 
     const SDL_GPUSamplerCreateInfo sampler_create_info = {};
 
+    SDL_GPUTextureCreateInfo texture_create_info = {};
+    texture_create_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    texture_create_info.layer_count_or_depth = 1;
+    texture_create_info.num_levels = 1;
+    texture_create_info.usage =
+        SDL_GPU_TEXTUREUSAGE_SAMPLER | SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ;
+    texture_create_info.width = 1;
+    texture_create_info.height = 1;
+
     return {.window = window,
             .device = device,
             .sampler = SDL_CreateGPUSampler(device, &sampler_create_info),
+            .default_texture = SDL_CreateGPUTexture(device, &texture_create_info),
             .screen = screen,
             .running = true};
 }
 
 static void unagiDeinit(App app) {
+    SDL_ReleaseGPUTexture(app.device, app.default_texture);
+    SDL_ReleaseGPUSampler(app.device, app.sampler);
     SDL_ReleaseGPUSampler(app.device, app.sampler);
     SDL_ReleaseWindowFromGPUDevice(app.device, app.window);
     SDL_DestroyGPUDevice(app.device);
     SDL_DestroyWindow(app.window);
     SDL_Quit();
+}
+
+static void unagiUpload(App app, SDL_GPUCopyPass *copy_pass) {
+    SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info = {};
+    transfer_buffer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    transfer_buffer_create_info.size = sizeof(Color);
+    auto *transfer_buffer = SDL_CreateGPUTransferBuffer(app.device, &transfer_buffer_create_info);
+    SDL_assert(transfer_buffer);
+    defer(SDL_ReleaseGPUTransferBuffer(app.device, transfer_buffer));
+
+    {
+        auto *transfer_buffer_data =
+            (Color *)SDL_MapGPUTransferBuffer(app.device, transfer_buffer, false);
+        defer(SDL_UnmapGPUTransferBuffer(app.device, transfer_buffer));
+
+        *transfer_buffer_data = {255, 255, 255, 255};
+    }
+
+    SDL_GPUTextureTransferInfo source = {};
+    source.transfer_buffer = transfer_buffer;
+    SDL_GPUTextureRegion destination = {};
+    destination.texture = app.default_texture;
+    destination.w = 1;
+    destination.h = 1;
+    destination.d = 1;
+    SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
 }
 
 struct Texture {
@@ -71,6 +111,8 @@ static SDL_GPUBuffer *createGPUBuffer(SDL_GPUDevice *device, SDL_GPUBufferUsageF
 static const usize VERTEX_BUFFER_SIZE = sizeof(vec2) * 4;
 static const usize INDEX_BUFFER_SIZE = sizeof(i16) * 6;
 
+const usize MAX_TEXTURE_SAMPLERS_PER_STAGE = 16;
+
 struct Pipeline {
     SDL_GPUBuffer *vertex_buffer;
     SDL_GPUBuffer *index_buffer;
@@ -78,6 +120,9 @@ struct Pipeline {
 
     u32 instance_buffer_size;
     SDL_GPUTransferBuffer *instances_transfer_buffer;
+    SDL_GPUTextureSamplerBinding texture_sampler_bindings[MAX_TEXTURE_SAMPLERS_PER_STAGE];
+    usize num_bindings;
+    SDL_GPUTexture *default_texture;
 
     SDL_GPUGraphicsPipeline *ptr;
 };
@@ -98,16 +143,18 @@ static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> cod
     return shader;
 };
 
-static Pipeline createPipeline(SDL_GPUDevice *device, u32 instance_size, u32 instance_len,
+static Pipeline createPipeline(App app, u32 instance_size, u32 instance_len,
                                Slice<const u8> vertex_code, Slice<const u8> fragment_code,
-                               u32 num_samplers, const SDL_GPUVertexAttribute *vertex_attributes,
+                               const SDL_GPUVertexAttribute *vertex_attributes,
                                u32 vertex_attributes_len, SDL_GPUTextureFormat format) {
-    auto *vertex_shader = createGPUShader(device, vertex_code, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
-    defer(SDL_ReleaseGPUShader(device, vertex_shader));
+    auto *vertex_shader =
+        createGPUShader(app.device, vertex_code, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
+    defer(SDL_ReleaseGPUShader(app.device, vertex_shader));
 
     auto *fragment_shader =
-        createGPUShader(device, fragment_code, SDL_GPU_SHADERSTAGE_FRAGMENT, num_samplers, 0);
-    defer(SDL_ReleaseGPUShader(device, fragment_shader));
+        createGPUShader(app.device, fragment_code, SDL_GPU_SHADERSTAGE_FRAGMENT,
+                        MAX_TEXTURE_SAMPLERS_PER_STAGE, 0);
+    defer(SDL_ReleaseGPUShader(app.device, fragment_shader));
 
     SDL_GPUGraphicsPipelineCreateInfo create_info = {};
     create_info.vertex_shader = vertex_shader;
@@ -140,15 +187,25 @@ static Pipeline createPipeline(SDL_GPUDevice *device, u32 instance_size, u32 ins
     create_info.target_info.color_target_descriptions = &color_target_description;
     create_info.target_info.num_color_targets = 1;
 
-    return {
-        .vertex_buffer = createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_VERTEX, VERTEX_BUFFER_SIZE),
-        .index_buffer = createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_INDEX, INDEX_BUFFER_SIZE),
+    Pipeline self = {
+        .vertex_buffer =
+            createGPUBuffer(app.device, SDL_GPU_BUFFERUSAGE_VERTEX, VERTEX_BUFFER_SIZE),
+        .index_buffer = createGPUBuffer(app.device, SDL_GPU_BUFFERUSAGE_INDEX, INDEX_BUFFER_SIZE),
         .instance_buffer =
-            createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_VERTEX, instance_size * instance_len),
+            createGPUBuffer(app.device, SDL_GPU_BUFFERUSAGE_VERTEX, instance_size * instance_len),
         .instance_buffer_size = instance_size * instance_len,
         .instances_transfer_buffer = 0,
-        .ptr = SDL_CreateGPUGraphicsPipeline(device, &create_info),
+        .texture_sampler_bindings = {},
+        .num_bindings = 0,
+        .default_texture = app.default_texture,
+        .ptr = SDL_CreateGPUGraphicsPipeline(app.device, &create_info),
     };
+
+    for (usize i = 0; i < MAX_TEXTURE_SAMPLERS_PER_STAGE; i++) {
+        self.texture_sampler_bindings[i].sampler = app.sampler;
+    }
+
+    return self;
 }
 
 static void uploadPipeline(Pipeline self, SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass,
@@ -190,6 +247,9 @@ static void *beginUploadInstances(Pipeline *self, SDL_GPUDevice *device) {
     self->instances_transfer_buffer =
         SDL_CreateGPUTransferBuffer(device, &transfer_buffer_create_info);
     SDL_assert(self->instances_transfer_buffer);
+
+    self->num_bindings = 0;
+
     return SDL_MapGPUTransferBuffer(device, self->instances_transfer_buffer, true);
 }
 
@@ -209,10 +269,10 @@ static void endUploadInstances(Pipeline *self, SDL_GPUDevice *device,
 }
 
 static void destroyPipeline(Pipeline self, SDL_GPUDevice *device) {
-    SDL_ReleaseGPUGraphicsPipeline(device, self.ptr);
     SDL_ReleaseGPUBuffer(device, self.index_buffer);
     SDL_ReleaseGPUBuffer(device, self.instance_buffer);
     SDL_ReleaseGPUBuffer(device, self.vertex_buffer);
+    SDL_ReleaseGPUGraphicsPipeline(device, self.ptr);
 }
 
 static SDL_GPURenderPass *beginRenderPass(SDL_GPUCommandBuffer *command_buffer,
@@ -233,6 +293,35 @@ static void bindPipeline(Pipeline self, SDL_GPURenderPass *render_pass) {
     SDL_BindGPUVertexBuffers(render_pass, 1, &buffer_binding, 1);
     buffer_binding.buffer = self.index_buffer;
     SDL_BindGPUIndexBuffer(render_pass, &buffer_binding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+
+    // TODO maybe use only one texture per draw call and don't bind fake ones
+    for (usize i = self.num_bindings; i < MAX_TEXTURE_SAMPLERS_PER_STAGE; i++) {
+        self.texture_sampler_bindings[i].texture = self.default_texture;
+    }
+    SDL_BindGPUFragmentSamplers(render_pass, 0, self.texture_sampler_bindings,
+                                MAX_TEXTURE_SAMPLERS_PER_STAGE);
+}
+
+static u32 bindTexture(Pipeline *self, Texture texture) {
+    for (usize i = 0; i < self->num_bindings; i++) {
+        if (self->texture_sampler_bindings[i].texture == texture.ptr) {
+            return i;
+        }
+    }
+    auto index = self->num_bindings++;
+    self->texture_sampler_bindings[index].texture = texture.ptr;
+    SDL_assert(index < MAX_TEXTURE_SAMPLERS_PER_STAGE);
+    return index;
+}
+
+__attribute__((format(printf, 2, 3))) static void bufferPrint(Slice<char> buffer, const char *fmt,
+                                                              ...) {
+    va_list args;
+    va_start(args, fmt);
+    defer(va_end(args));
+
+    auto result = SDL_vsnprintf(buffer.ptr, buffer.len, fmt, args);
+    SDL_assert(result >= 0 and usize(result) < buffer.len);
 }
 
 #endif // UNAGI_CPP
