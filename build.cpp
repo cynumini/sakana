@@ -109,7 +109,7 @@ static const char *glslc(const char *input, const char *output) {
     return output;
 }
 
-static void addArgsFromCompileFlags(Args *args, SliceU8 compile_flags) {
+static void addArgsFromCompileFlags(Args *args, Slice<u8> compile_flags) {
     usize start = 0;
     for (usize i = 0; i < compile_flags.len; i++) {
         if (compile_flags.ptr[i] == '\n') {
@@ -120,7 +120,7 @@ static void addArgsFromCompileFlags(Args *args, SliceU8 compile_flags) {
     }
 }
 
-static SliceU8 loadFile(const char *filename) {
+static Slice<u8> loadFile(const char *filename) {
     auto *stream = fopen(filename, "r");
     assert(stream);
     defer(assert(fclose(stream) == 0));
@@ -137,7 +137,7 @@ static SliceU8 loadFile(const char *filename) {
 
     assert(fread(data, sizeof(char), n, stream) == n);
 
-    return SliceU8{data, n};
+    return {data, n};
 }
 
 static const char *binToHpp(const char *input, const char *output, const char *var_name) {
@@ -169,8 +169,8 @@ static const char *binToHpp(const char *input, const char *output, const char *v
         }
 
         assert(fprintf(stream, "\n};\n") >= 0);
-        assert(fprintf(stream, "const Slice<const u8> %s = {.ptr = %s_raw, .len = %zu};", var_name,
-                       var_name, data.len) >= 0);
+        assert(fprintf(stream, "const Slice<const u8> %s = {.ptr = %s_raw, .len = %zu};",
+                       var_name, var_name, data.len) >= 0);
     }
 
     return output;

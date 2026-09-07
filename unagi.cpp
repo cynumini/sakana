@@ -47,7 +47,7 @@ static App unagiInit(const char *name, const char *version, const char *identifi
             .running = true};
 }
 
-static void unagiInit(App app) {
+static void unagiDeinit(App app) {
     SDL_ReleaseGPUSampler(app.device, app.sampler);
     SDL_ReleaseWindowFromGPUDevice(app.device, app.window);
     SDL_DestroyGPUDevice(app.device);
@@ -77,7 +77,7 @@ struct Pipeline {
     SDL_GPUBuffer *instance_buffer;
 
     u32 instance_buffer_size;
-    SDL_GPUTransferBuffer *transfer_buffer;
+    SDL_GPUTransferBuffer *instances_transfer_buffer;
 
     SDL_GPUGraphicsPipeline *ptr;
 };
@@ -98,11 +98,10 @@ static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> cod
     return shader;
 };
 
-static Pipeline createPipeline(SDL_GPUDevice *device, usize instance_buffer_size,
-                        Slice<const u8> vertex_code, Slice<const u8> fragment_code,
-                        u32 num_samplers, u32 instance_size,
-                        const SDL_GPUVertexAttribute *vertex_attributes,
-                        u32 vertex_attributes_len, SDL_GPUTextureFormat format) {
+static Pipeline createPipeline(SDL_GPUDevice *device, u32 instance_size, u32 instance_len,
+                               Slice<const u8> vertex_code, Slice<const u8> fragment_code,
+                               u32 num_samplers, const SDL_GPUVertexAttribute *vertex_attributes,
+                               u32 vertex_attributes_len, SDL_GPUTextureFormat format) {
     auto *vertex_shader = createGPUShader(device, vertex_code, SDL_GPU_SHADERSTAGE_VERTEX, 0, 1);
     defer(SDL_ReleaseGPUShader(device, vertex_shader));
 
@@ -110,20 +109,19 @@ static Pipeline createPipeline(SDL_GPUDevice *device, usize instance_buffer_size
         createGPUShader(device, fragment_code, SDL_GPU_SHADERSTAGE_FRAGMENT, num_samplers, 0);
     defer(SDL_ReleaseGPUShader(device, fragment_shader));
 
-    SDL_GPUGraphicsPipelineCreateInfo pipeline_create_info = {};
-    pipeline_create_info.vertex_shader = vertex_shader;
-    pipeline_create_info.fragment_shader = fragment_shader;
+    SDL_GPUGraphicsPipelineCreateInfo create_info = {};
+    create_info.vertex_shader = vertex_shader;
+    create_info.fragment_shader = fragment_shader;
     const SDL_GPUVertexBufferDescription vertex_buffer_descriptions[2] = {
         {0, sizeof(vec2), SDL_GPU_VERTEXINPUTRATE_VERTEX, 0},
         {1, instance_size, SDL_GPU_VERTEXINPUTRATE_INSTANCE, 0}};
-    pipeline_create_info.vertex_input_state.vertex_buffer_descriptions =
+    create_info.vertex_input_state.vertex_buffer_descriptions =
         (SDL_GPUVertexBufferDescription *)vertex_buffer_descriptions;
-    pipeline_create_info.vertex_input_state.num_vertex_buffers =
-        SDL_arraysize(vertex_buffer_descriptions);
+    create_info.vertex_input_state.num_vertex_buffers = SDL_arraysize(vertex_buffer_descriptions);
 
-    pipeline_create_info.vertex_input_state.vertex_attributes = vertex_attributes;
-    pipeline_create_info.vertex_input_state.num_vertex_attributes = vertex_attributes_len;
-    pipeline_create_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    create_info.vertex_input_state.vertex_attributes = vertex_attributes;
+    create_info.vertex_input_state.num_vertex_attributes = vertex_attributes_len;
+    create_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     SDL_GPUColorTargetDescription color_target_description = {};
     color_target_description.format = format;
 
@@ -139,22 +137,22 @@ static Pipeline createPipeline(SDL_GPUDevice *device, usize instance_buffer_size
         SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
     color_target_description.blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
 
-    pipeline_create_info.target_info.color_target_descriptions = &color_target_description;
-    pipeline_create_info.target_info.num_color_targets = 1;
+    create_info.target_info.color_target_descriptions = &color_target_description;
+    create_info.target_info.num_color_targets = 1;
 
     return {
         .vertex_buffer = createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_VERTEX, VERTEX_BUFFER_SIZE),
-        .index_buffer = createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_VERTEX, INDEX_BUFFER_SIZE),
+        .index_buffer = createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_INDEX, INDEX_BUFFER_SIZE),
         .instance_buffer =
-            createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_VERTEX, instance_buffer_size),
-        .instance_buffer_size = u32(instance_buffer_size),
-        .transfer_buffer = 0,
-        .ptr = SDL_CreateGPUGraphicsPipeline(device, &pipeline_create_info),
+            createGPUBuffer(device, SDL_GPU_BUFFERUSAGE_VERTEX, instance_size * instance_len),
+        .instance_buffer_size = instance_size * instance_len,
+        .instances_transfer_buffer = 0,
+        .ptr = SDL_CreateGPUGraphicsPipeline(device, &create_info),
     };
 }
 
 static void uploadPipeline(Pipeline self, SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass,
-                    vec2 vertices[4]) {
+                           vec2 vertices[4]) {
     SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info = {};
     transfer_buffer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     transfer_buffer_create_info.size = VERTEX_BUFFER_SIZE + INDEX_BUFFER_SIZE;
@@ -185,26 +183,29 @@ static void uploadPipeline(Pipeline self, SDL_GPUDevice *device, SDL_GPUCopyPass
     SDL_UploadToGPUBuffer(copy_pass, &source, &destination, false);
 }
 
-static void *beginUploadInstances(Pipeline self, SDL_GPUDevice *device) {
+static void *beginUploadInstances(Pipeline *self, SDL_GPUDevice *device) {
     SDL_GPUTransferBufferCreateInfo transfer_buffer_create_info = {};
     transfer_buffer_create_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-    transfer_buffer_create_info.size = self.instance_buffer_size;
-    auto *transfer_buffer = SDL_CreateGPUTransferBuffer(device, &transfer_buffer_create_info);
-    SDL_assert(transfer_buffer);
-    return SDL_MapGPUTransferBuffer(device, transfer_buffer, true);
+    transfer_buffer_create_info.size = self->instance_buffer_size;
+    self->instances_transfer_buffer =
+        SDL_CreateGPUTransferBuffer(device, &transfer_buffer_create_info);
+    SDL_assert(self->instances_transfer_buffer);
+    return SDL_MapGPUTransferBuffer(device, self->instances_transfer_buffer, true);
 }
 
-static void endUploadInstances(Pipeline self, SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass) {
-    SDL_assert(self.transfer_buffer);
-    defer(self.transfer_buffer = 0);
+static void endUploadInstances(Pipeline *self, SDL_GPUDevice *device,
+                               SDL_GPUCopyPass *copy_pass) {
+    SDL_assert(self->instances_transfer_buffer);
+    defer(self->instances_transfer_buffer = 0);
 
-    SDL_UnmapGPUTransferBuffer(device, self.transfer_buffer);
+    SDL_UnmapGPUTransferBuffer(device, self->instances_transfer_buffer);
 
-    const SDL_GPUTransferBufferLocation source{self.transfer_buffer, 0};
-    const SDL_GPUBufferRegion destination = {self.instance_buffer, 0, self.instance_buffer_size};
+    const SDL_GPUTransferBufferLocation source{self->instances_transfer_buffer, 0};
+    const SDL_GPUBufferRegion destination = {self->instance_buffer, 0,
+                                             self->instance_buffer_size};
     SDL_UploadToGPUBuffer(copy_pass, &source, &destination, true);
 
-    SDL_ReleaseGPUTransferBuffer(device, self.transfer_buffer);
+    SDL_ReleaseGPUTransferBuffer(device, self->instances_transfer_buffer);
 }
 
 static void destroyPipeline(Pipeline self, SDL_GPUDevice *device) {
@@ -215,7 +216,7 @@ static void destroyPipeline(Pipeline self, SDL_GPUDevice *device) {
 }
 
 static SDL_GPURenderPass *beginRenderPass(SDL_GPUCommandBuffer *command_buffer,
-                                   SDL_GPUTexture *swapchain_texture) {
+                                          SDL_GPUTexture *swapchain_texture) {
     SDL_GPUColorTargetInfo color_target_info = {};
     color_target_info.texture = swapchain_texture;
     color_target_info.clear_color = GREY;
@@ -232,26 +233,6 @@ static void bindPipeline(Pipeline self, SDL_GPURenderPass *render_pass) {
     SDL_BindGPUVertexBuffers(render_pass, 1, &buffer_binding, 1);
     buffer_binding.buffer = self.index_buffer;
     SDL_BindGPUIndexBuffer(render_pass, &buffer_binding, SDL_GPU_INDEXELEMENTSIZE_16BIT);
-    //     SDL_GPUTextureSamplerBinding texture_sampler_binding[] = {{texture.ptr, sampler},
-    //                                                               {font_texture.ptr, sampler}};
-    //     SDL_BindGPUFragmentSamplers(render_pass, 0, texture_sampler_binding, 2);
-    //     struct UBO {
-    //         vec2 screen;
-    //         vec2 camera;
-    //         i32 center;
-    //     } ubo;
-    //     ubo.screen = app.screen;
-    //     ubo.camera = -player_position;
-    //     ubo.center = 1;
-    //     SDL_PushGPUVertexUniformData(command_buffer, 0, &ubo, sizeof(UBO));
-    //     SDL_DrawGPUIndexedPrimitives(render_pass, 6, ui_instance_offset, 0, 0, 0);
-    //     ubo.camera = -vec2(app.screen.x / 2.0F, app.screen.y / 2.0F);
-    //     ubo.center = 0;
-    //     SDL_PushGPUVertexUniformData(command_buffer, 0, &ubo, sizeof(UBO));
-    //     SDL_DrawGPUIndexedPrimitives(render_pass, 6, renderer.count - ui_instance_offset, 0, 0,
-    //                                  ui_instance_offset);
 }
-
-static void draw(SDL_GPUCommandBuffer *command_buffer, SDL_GPUTexture *swapchain_texture, Color color) {}
 
 #endif // UNAGI_CPP
