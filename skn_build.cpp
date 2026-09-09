@@ -39,18 +39,18 @@ static bool needsUpdate(const char *output, const char *const inputs[]) {
     return false;
 }
 
-const usize ARGS_CAPACITY = 1U << 4U;
+const uint ARGS_CAPACITY = 1U << 4U;
 
 struct Args {
-    usize capacity = ARGS_CAPACITY;
+    uint capacity = ARGS_CAPACITY;
     const char *data[ARGS_CAPACITY + 1]; // +1 for sentinel
-    usize len = 0;
+    uint len = 0;
 };
 
 static void runReplace(Args args) {
     assert(args.data[0] != 0);
     printf("run:");
-    for (i32 i = 0; args.data[i] != 0; i++) printf(" %s", args.data[i]);
+    for (uint i = 0; args.data[i] != 0; i++) printf(" %s", args.data[i]);
     printf("\n");
     execvp(args.data[0], (char **)args.data);
     perror("errno");
@@ -63,7 +63,7 @@ static void run(Args args) {
         runReplace(args);
         _exit(1);
     } else {
-        i32 status = 0;
+        int status = 0;
         wait(&status);
         assert(status == 0);
     }
@@ -75,7 +75,7 @@ static void addArg(Args *args, const char *arg) {
     args->data[args->len] = 0;
 }
 
-static void rebuildAndRestartOnChanges(i32 argc, const char *argv[]) {
+static void rebuildAndRestartOnChanges(int argc, const char *argv[]) {
     assert(argc >= 1);
     mkdir("./build", 0755);
 
@@ -110,8 +110,8 @@ static const char *glslc(const char *input, const char *output) {
 }
 
 static void addArgsFromCompileFlags(Args *args, Slice<u8> compile_flags) {
-    usize start = 0;
-    for (usize i = 0; i < compile_flags.len; i++) {
+    uint start = 0;
+    for (uint i = 0; i < compile_flags.len; i++) {
         if (compile_flags.ptr[i] == '\n') {
             compile_flags.ptr[i] = 0;
             addArg(args, (char *)(compile_flags.ptr + start));
@@ -123,19 +123,20 @@ static void addArgsFromCompileFlags(Args *args, Slice<u8> compile_flags) {
 static Slice<u8> loadFile(const char *filename) {
     auto *stream = fopen(filename, "r");
     assert(stream);
-    defer(assert(fclose(stream) == 0));
 
     assert(fseek(stream, 0, SEEK_END) == 0);
 
     auto position = ftell(stream);
     assert(position != -1);
-    auto n = (usize)position;
+    auto n = (uint)position;
 
     assert(fseek(stream, 0, SEEK_SET) == 0);
 
     auto *data = (u8 *)malloc(n);
 
     assert(fread(data, sizeof(char), n, stream) == n);
+
+    assert(fclose(stream) == 0);
 
     return {data, n};
 }
@@ -145,16 +146,15 @@ static const char *binToHpp(const char *input, const char *output, const char *v
         printf("generate %s from %s\n", output, input);
 
         auto data = loadFile(input);
-        defer(free(data.ptr));
 
         auto *stream = fopen(output, "w");
         assert(stream);
-        defer(assert(fclose(stream) == 0));
 
-        assert(fprintf(stream, "#include <sakana.cpp>\n\n") >= 0);
+        assert(fprintf(stream, "#pragma once\n\n") >= 0);
+        assert(fprintf(stream, "#include <skn.cpp>\n\n") >= 0);
         assert(fprintf(stream, "const u8 %s_raw[] = {\n    ", var_name) >= 0);
 
-        for (usize i = 0; i < data.len; i++) {
+        for (uint i = 0; i < data.len; i++) {
             if (i == 0) {
                 assert(fprintf(stream, "0x%02x,", data.ptr[i]) >= 0);
             } else {
@@ -169,16 +169,19 @@ static const char *binToHpp(const char *input, const char *output, const char *v
         }
 
         assert(fprintf(stream, "\n};\n") >= 0);
-        assert(fprintf(stream, "const Slice<const u8> %s = {.ptr = %s_raw, .len = %zu};",
+        assert(fprintf(stream, "const Slice<const u8> %s = {.ptr = %s_raw, .len = %u};\n",
                        var_name, var_name, data.len) >= 0);
+
+        assert(fclose(stream) == 0);
+        free(data.ptr);
     }
 
     return output;
 }
 
 static const char *glslcHpp(const char *input, const char *output, const char *var_name) {
-    const usize BUFFER_SIZE = 1U << 5U; // 2 ^ 3 = 32
+    const int BUFFER_SIZE = 1U << 5U; // 2 ^ 3 = 32
     char buffer[BUFFER_SIZE] = {};
-    assert((usize)snprintf(buffer, BUFFER_SIZE, "%s.spv", output) < BUFFER_SIZE);
+    assert(snprintf(buffer, BUFFER_SIZE, "%s.spv", output) < BUFFER_SIZE);
     return binToHpp(glslc(input, buffer), output, var_name);
 }
