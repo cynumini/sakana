@@ -11,8 +11,9 @@ Checks: >
   -fuchsia-default-arguments-calls,
   -fuchsia-default-arguments-declarations,
   -fuchsia-overloaded-operator,
+  -google-default-arguments,
   -google-explicit-constructor,
-  -google-readability-casting,modernize-avoid-c-style-cast,
+  -google-readability-casting,
   -google-readability-todo,
   -google-runtime-int,
   -hicpp-*,
@@ -29,15 +30,16 @@ Checks: >
   -misc-use-internal-linkage,
   -modernize-avoid-c-arrays,
   -modernize-avoid-c-style-cast,
+  -modernize-avoid-c-style-cast,
   -modernize-avoid-variadic-functions,
   -modernize-deprecated-headers,
   -modernize-loop-convert,
   -modernize-use-*,
+  -portability-avoid-pragma-once,
   -readability-braces-around-statements,
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
   -readability-implicit-bool-conversion,
-  -portability-avoid-pragma-once,
   -readability-magic-numbers
 
 ExcludeHeaderFilterRegex: '/usr/include/gentoo'

@@ -1,4 +1,4 @@
-#include "sakana.cpp"
+#include "skn.cpp"
 
 #include <assert.h>
 #include <stdio.h>
