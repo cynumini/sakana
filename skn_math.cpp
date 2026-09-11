@@ -28,6 +28,7 @@ struct Color {
 
 const Color WHITE = {255, 255, 255, 255};
 const Color GRAY = {128, 128, 128, 255};
+const Color RED = {255, 0, 0, 255};
 
 struct FColor {
     f32 r;

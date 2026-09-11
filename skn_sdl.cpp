@@ -56,7 +56,18 @@ static Texture loadTexture(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, co
     Texture texture = {};
     texture.ptr = IMG_LoadGPUTexture(device, copy_pass, file, &texture.size.x, &texture.size.y);
     return texture;
-};
+}
+
+static SDL_GPUTexture *createGPUTexture(SDL_GPUDevice *device, ivec2 size) {
+    SDL_GPUTextureCreateInfo createinfo = {};
+    createinfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    createinfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    createinfo.width = size.x;
+    createinfo.height = size.y;
+    createinfo.layer_count_or_depth = 1;
+    createinfo.num_levels = 1;
+    return SDL_CreateGPUTexture(device, &createinfo);
+}
 
 // __attribute__((format(printf, 2, 3))) static void bufferPrint(Slice<char> buffer, const char
 // *fmt,
@@ -70,26 +81,24 @@ static Texture loadTexture(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, co
 // }
 
 // SDL allocator
-static void *sdlMalloc([[maybe_unused]] Allocator *allocator, usize size,
-                       [[maybe_unused]] Location loc) {
-    return SDL_malloc(size);
+static u8 *sdlAlloc([[maybe_unused]] Allocator *allocator, usize len,
+                    [[maybe_unused]] usize alignment, [[maybe_unused]] Location loc) {
+    return (u8 *)SDL_malloc(len);
 }
 
-static void sdlFree([[maybe_unused]] Allocator *allocator, void *mem) { SDL_free(mem); }
-
-static void *sdlCalloc([[maybe_unused]] Allocator *allocator, usize len, usize size,
-                       [[maybe_unused]] Location loc) {
-    return SDL_calloc(len, size);
+static u8 *sdlRealloc([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
+                      [[maybe_unused]] usize alignment, usize new_len,
+                      [[maybe_unused]] Location loc) {
+    return (u8 *)SDL_realloc(memory.ptr, new_len);
 }
 
-static void *sdlRealloc([[maybe_unused]] Allocator *allocator, void *mem, usize size,
-                        [[maybe_unused]] Location loc) {
-    return SDL_realloc(mem, size);
+static void sdlFree([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
+                    [[maybe_unused]] usize alignment) {
+    SDL_free(memory.ptr);
 }
 
 static Allocator sdl_allocator = {
-    .malloc = sdlMalloc,
-    .free = sdlFree,
-    .calloc = sdlCalloc,
+    .alloc = sdlAlloc,
     .realloc = sdlRealloc,
+    .free = sdlFree,
 };

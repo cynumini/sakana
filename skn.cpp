@@ -24,6 +24,10 @@ static_assert(sizeof(f64) == 8);
 
 typedef unsigned int uint;
 typedef size_t usize;
+typedef ptrdiff_t isize;
+
+template <typename T> T min(T a, T b) { return a < b ? a : b; }
+template <typename T> T max(T a, T b) { return a > b ? a : b; }
 
 struct Location {
     const char *file;
@@ -34,94 +38,132 @@ static Location getLocation(const char *file = __builtin_FILE(), usize line = __
     return Location{file, line};
 }
 
-// Allocator interface
-struct Allocator {
-    void *(*malloc)(Allocator *, usize, Location);
-    void (*free)(Allocator *, void *);
-    void *(*calloc)(Allocator *, usize, usize, Location);
-    void *(*realloc)(Allocator *, void *, usize, Location);
-};
-
-static void *malloc(Allocator *allocator, usize size, Location loc = getLocation()) {
-    return allocator->malloc(allocator, size, loc);
-}
-static void free(Allocator *allocator, void *ptr) { allocator->free(allocator, ptr); }
-static void *calloc(Allocator *allocator, usize len, usize size, Location loc = getLocation()) {
-    return allocator->calloc(allocator, len, size, loc);
-}
-static void *realloc(Allocator *allocator, void *ptr, usize size, Location loc = getLocation()) {
-    return allocator->realloc(allocator, ptr, size, loc);
-}
-
-// C allocator
-static void *cMalloc([[maybe_unused]] Allocator *allocator, usize size,
-                     [[maybe_unused]] Location loc) {
-    return malloc(size);
-}
-static void cFree([[maybe_unused]] Allocator *allocator, void *mem) { free(mem); }
-static void *cCalloc([[maybe_unused]] Allocator *allocator, usize len, usize size,
-                     [[maybe_unused]] Location loc) {
-    return calloc(len, size);
-}
-static void *cRealloc([[maybe_unused]] Allocator *allocator, void *mem, usize size,
-                      [[maybe_unused]] Location loc) {
-    return realloc(mem, size);
-}
-static Allocator c_allocator = {
-    .malloc = cMalloc,
-    .free = cFree,
-    .calloc = cCalloc,
-    .realloc = cRealloc,
-};
-
 // Slice
 template <typename T> struct Slice {
     T *ptr;
     usize len;
+    T *operator[](usize index) { return ptr[index]; }
+    T *begin() { return ptr; }
+    T *end() { return ptr + len; }
 };
 
-template <typename T>
-Slice<T> sliceAlloc(Allocator *allocator, usize len, bool zero = true,
-                    Location loc = getLocation()) {
-    if (len == 0) return {};
-    if (zero) return {(T *)calloc(allocator, len, sizeof(T), loc), len};
-    return {(T *)malloc(allocator, sizeof(T) * len, loc), len};
+template <typename T> static Slice<T> sliceFromZeroSentinelArray(T *array) {
+    usize len = 0;
+    while (array[len] != 0) len++;
+    return {array, len};
 }
 
+// Array
+template <typename T, usize N> struct Array {
+    T data[N];
+    usize len = N;
+    T *operator[](usize index) { return data[index]; }
+    T *begin() { return data; }
+    T *end() { return data + len; }
+};
+
+// Allocator interface
+struct Allocator {
+    u8 *(*alloc)(Allocator *, usize len, usize alignment, Location loc);
+    u8 *(*realloc)(Allocator *, Slice<u8> memory, usize alignment, usize new_len, Location loc);
+    void (*free)(Allocator *, Slice<u8> memory, usize alignment);
+};
+
+template <typename T> T *create(Allocator *a, Location loc = getLocation()) {
+    return (T *)a->alloc(a, sizeof(T), alignof(T), loc);
+}
+template <typename T> void destroy(Allocator *a, T *ptr) {
+    a->free(a, {ptr, sizeof(T)}, alignof(T));
+}
+template <typename T> Slice<T> alloc(Allocator *a, usize n, Location loc = getLocation()) {
+    return {(T*)a->alloc(a, sizeof(T) * n, alignof(T), loc), n};
+}
+template <typename T> void free(Allocator *a, Slice<T> memory) {
+    a->free(a, {(u8 *)memory.ptr, sizeof(T) * memory.len}, alignof(T));
+}
 template <typename T>
-Slice<T> sliceRealloc(Allocator *allocator, Slice<T> slice, usize len, bool zero = true,
-                      Location loc = getLocation()) {
-    if (slice.len == 0) return sliceAlloc<T>(allocator, len, zero, loc);
-    slice.ptr = (T *)realloc(allocator, slice.ptr, len * sizeof(T), loc);
-    assert(slice.ptr);
-    if (zero and len > slice.len) memset(slice.ptr + slice.len, 0, (len - slice.len) * sizeof(T));
-    slice.len = len;
-    return slice;
+Slice<T> realloc(Allocator *a, Slice<T> old_mem, usize new_n, Location loc = getLocation()) {
+    return {
+        (T *)a->realloc(a, {(u8 *)old_mem.ptr, sizeof(T) * old_mem.len}, alignof(T),
+                        sizeof(T) * new_n, loc),
+        new_n,
+    };
 }
 
-template <typename T> void sliceFree(Allocator *allocator, Slice<T> slice) {
-    free(allocator, slice.ptr);
+// C allocator
+static u8 *cAlloc([[maybe_unused]] Allocator *allocator, usize len,
+                  [[maybe_unused]] usize alignment, [[maybe_unused]] Location loc) {
+    return (u8 *)malloc(len);
 }
+
+static u8 *cRealloc([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
+                    [[maybe_unused]] usize alignment, usize new_len,
+                    [[maybe_unused]] Location loc) {
+    return (u8 *)realloc(memory.ptr, new_len);
+}
+
+static void cFree([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
+                  [[maybe_unused]] usize alignment) {
+    free(memory.ptr);
+}
+
+static Allocator c_allocator = {
+    .alloc = cAlloc,
+    .realloc = cRealloc,
+    .free = cFree,
+};
 
 // Dynamic
 template <typename T> struct Dynamic {
+    // items's len is capacity
     Slice<T> items;
-    uint capacity;
+    usize len;
+
+    T *operator[](usize index) { return items[index]; }
+    T *begin() { return items.ptr; }
+    T *end() { return items.ptr + len; }
 };
 
 template <typename T>
 void append(Allocator *allocator, Dynamic<T> *array, T value, Location loc = getLocation()) {
-    if (array->items.len == array->capacity) {
-        array->capacity = array->capacity == 0 ? 1 : array->capacity * 2;
-        auto old_len = array->items.len;
-        array->items = sliceRealloc(allocator, array->items, array->capacity, false, loc);
-        array->items.len = old_len;
+    if (array->len == array->items.len) {
+        auto len = array->items.len;
+        len = len ? len * 2 : 1;
+        assert(len > array->items.len);
+        array->items = realloc(allocator, array->items, len, loc);
     }
-    array->items.ptr[array->items.len++] = value;
+    array->items.ptr[array->len++] = value;
 }
 
 template <typename T> void dynamicDeinit(Allocator *allocator, Dynamic<T> array) {
-    sliceFree(allocator, array.items);
+    free(allocator, array.items);
+}
+
+// FixedStack
+template <typename T, usize N> struct FixedStack {
+    static_assert(N > 0);
+    Array<T, N> items;
+    usize len;
+    usize next;
+};
+
+template <typename T, usize N> void push(FixedStack<T, N> *stack, T value) {
+    stack->items.data[stack->next] = value;
+    stack->next = (stack->next + 1) % N;
+    if (stack->len < N) stack->len++;
+}
+
+template <typename T, usize N> T pop(FixedStack<T, N> *stack) {
+    assert(stack->len > 0);
+    stack->len--;
+    stack->next = stack->len ? (N + stack->next - 1) % N : 0;
+    return stack->items.data[stack->next];
+}
+
+template <typename T, usize N> T peek(const FixedStack<T, N> *stack) {
+    assert(stack->len > 0);
+    auto index = (N + stack->next - 1) % N;
+    return stack->items.data[index];
 }
 
 // Debug Allocator
@@ -136,62 +178,65 @@ struct DebugAllocator {
     Dynamic<AllocationLocation> locations;
 };
 
-static void *debugAllocatorMalloc(Allocator *allocator, usize size, Location loc) {
+static u8 *debugAllocatorAlloc(Allocator *allocator, usize len, usize alignment, Location loc) {
     auto *da = (DebugAllocator *)allocator;
-    void *mem = malloc(da->parent, size, loc);
+
+    u8 *mem = da->parent->alloc(da->parent, len, alignment, loc);
     assert(mem);
+
     append(da->parent, &da->locations, {loc, mem});
+
     return mem;
 }
 
-static void debugAllocatorFree(Allocator *allocator, void *mem) {
+static u8 *debugAllocatorRealloc(Allocator *allocator, Slice<u8> memory, usize alignment,
+                                 usize new_len, Location loc) {
     auto *da = (DebugAllocator *)allocator;
-    for (uint i = 0; i < da->locations.items.len; i++) {
-        if (da->locations.items.ptr[i].mem == mem) {
-            da->locations.items.ptr[i].mem = 0;
-            break;
-        }
-    }
-    free(da->parent, mem);
-}
+    if (memory.ptr == 0) return debugAllocatorAlloc(allocator, new_len, alignment, loc);
 
-static void *debugAllocatorCalloc(Allocator *allocator, usize len, usize size, Location loc) {
-    auto *da = (DebugAllocator *)allocator;
-    void *ptr = calloc(da->parent, len, size, loc);
-    assert(ptr);
-    append(da->parent, &da->locations, {loc, ptr});
-    return ptr;
-}
-
-static void *debugAllocatorRealloc(Allocator *allocator, void *mem, usize size, Location loc) {
-    auto *da = (DebugAllocator *)allocator;
-    void *new_mem = realloc(da->parent, mem, size, loc);
+    u8 *new_mem = da->parent->realloc(da->parent, memory, alignment, new_len, loc);
     assert(new_mem);
-    for (uint i = 0; i < da->locations.items.len; i++) {
-        if (da->locations.items.ptr[i].mem == mem) {
-            da->locations.items.ptr[i] = {loc, new_mem};
+
+    for (auto location : da->locations) {
+        if (location.mem == memory.ptr) {
+            location = {loc, new_mem};
             break;
         }
     }
+
     return new_mem;
+}
+
+static void debugAllocatorFree(Allocator *allocator, Slice<u8> memory, usize alignment) {
+    auto *da = (DebugAllocator *)allocator;
+
+    for (auto &location : da->locations) {
+        if (location.mem == memory.ptr) {
+            location.mem = 0;
+            break;
+        }
+    }
+
+    da->parent->free(da->parent, memory, alignment);
 }
 
 static DebugAllocator debugAllocatorInit(Allocator *parent) {
     return {
-        .allocator = {.malloc = debugAllocatorMalloc,
-                      .free = debugAllocatorFree,
-                      .calloc = debugAllocatorCalloc,
-                      .realloc = debugAllocatorRealloc},
+        .allocator =
+            {
+                .alloc = debugAllocatorAlloc,
+                .realloc = debugAllocatorRealloc,
+                .free = debugAllocatorFree,
+            },
         .parent = parent,
         .locations = {},
     };
 }
 
 static void debugAllocatorDeinit(DebugAllocator *da) {
-    for (usize i = 0; i < da->locations.items.len; i++) {
-        if (da->locations.items.ptr[i].mem != 0) {
-            printf("%s:%zu:0: memory leak\n", da->locations.items.ptr[i].location.file,
-                   da->locations.items.ptr[i].location.line);
+    for (auto &location : da->locations) {
+        if (location.mem != 0) {
+            printf("%s:%zu:0: memory leak\n", location.location.file, location.location.line);
         }
     }
     dynamicDeinit(da->parent, da->locations);
@@ -201,4 +246,72 @@ template <typename T>
 static void debugAllocatorOwn(DebugAllocator *da, T *mem, Location loc = getLocation()) {
     assert(mem);
     append(da->parent, &da->locations, {loc, mem});
+}
+
+template <typename T>
+static void debugAllocatorOwn(DebugAllocator *da, Slice<T> mem, Location loc = getLocation()) {
+    assert(mem.ptr);
+    append(da->parent, &da->locations, {loc, (void *)mem.ptr});
+}
+
+// Arena
+struct ArenaAllocator {
+    Allocator allocator;
+    Slice<u8> mem;
+    usize next_position;
+    FixedStack<usize, 4> prev_positions;
+};
+
+static usize alignPosition(usize position, usize alignment) {
+    auto mod = position % alignment;
+    return mod ? position + (alignment - mod) : position;
+}
+
+static usize positionFromPointer(void *start, void *ptr) {
+    auto diff = (isize)ptr - (isize)start;
+    assert(diff >= 0);
+    return (usize)diff;
+}
+
+static u8 *arenaAlloc(Allocator *allocator, usize len, usize alignment,
+                      [[maybe_unused]] Location loc) {
+    auto *aa = (ArenaAllocator *)allocator;
+    auto pos = alignPosition(aa->next_position, alignment);
+    assert((pos + len) <= aa->mem.len);
+    push(&aa->prev_positions, aa->next_position);
+    aa->next_position = pos + len;
+    return aa->mem.ptr + pos;
+}
+
+static u8 *arenaRealloc(Allocator *allocator, Slice<u8> memory, usize alignment, usize new_len,
+                        Location loc) {
+    auto *aa = (ArenaAllocator *)allocator;
+    if (memory.ptr == 0 or aa->prev_positions.len == 0) {
+        return arenaAlloc(allocator, new_len, alignment, loc);
+    }
+    auto diff = positionFromPointer(aa->mem.ptr, memory.ptr);
+    assert(diff <= aa->mem.len);
+    auto pos = alignPosition(diff, alignment);
+    if (pos != alignPosition(peek(&aa->prev_positions), alignment)) {
+        return arenaAlloc(allocator, new_len, alignment, loc);
+    }
+    assert((pos + new_len) <= aa->mem.len);
+    aa->next_position = pos + new_len;
+    return aa->mem.ptr + pos;
+}
+
+static void arenaFree(Allocator *allocator, Slice<u8> memory, usize alignment) {
+    auto *aa = (ArenaAllocator *)allocator;
+    if (aa->prev_positions.len == 0) return;
+    if (memory.ptr == 0) return;
+    auto diff = positionFromPointer(aa->mem.ptr, memory.ptr);
+    assert(diff <= aa->mem.len);
+    if (diff == alignPosition(peek(&aa->prev_positions), alignment)) {
+        aa->next_position = pop(&aa->prev_positions);
+    }
+}
+
+static ArenaAllocator arenaAllocatorInit(Slice<u8> mem) {
+    return {.allocator = {.alloc = arenaAlloc, .realloc = arenaRealloc, .free = arenaFree},
+            .mem = mem};
 }
