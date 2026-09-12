@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,6 +27,9 @@ typedef unsigned int uint;
 typedef size_t usize;
 typedef ptrdiff_t isize;
 
+#define KB(value) ((value) * 1024UL)
+#define MB(value) (KB(value) * 1024UL)
+
 template <typename T> T min(T a, T b) { return a < b ? a : b; }
 template <typename T> T max(T a, T b) { return a > b ? a : b; }
 
@@ -42,7 +46,7 @@ static Location getLocation(const char *file = __builtin_FILE(), usize line = __
 template <typename T> struct Slice {
     T *ptr;
     usize len;
-    T *operator[](usize index) { return ptr[index]; }
+    T &operator[](usize index) { return ptr[index]; }
     T *begin() { return ptr; }
     T *end() { return ptr + len; }
 };
@@ -56,11 +60,14 @@ template <typename T> static Slice<T> sliceFromZeroSentinelArray(T *array) {
 // Array
 template <typename T, usize N> struct Array {
     T data[N];
-    usize len = N;
-    T *operator[](usize index) { return data[index]; }
+    static constexpr usize len = N;
+    T &operator[](usize index) { return data[index]; }
+    const T &operator[](usize index) const { return data[index]; }
     T *begin() { return data; }
     T *end() { return data + len; }
 };
+
+#define ARRAY_LEN(array) (sizeof(array) / sizeof((array)[0]))
 
 // Allocator interface
 struct Allocator {
@@ -76,7 +83,7 @@ template <typename T> void destroy(Allocator *a, T *ptr) {
     a->free(a, {ptr, sizeof(T)}, alignof(T));
 }
 template <typename T> Slice<T> alloc(Allocator *a, usize n, Location loc = getLocation()) {
-    return {(T*)a->alloc(a, sizeof(T) * n, alignof(T), loc), n};
+    return {(T *)a->alloc(a, sizeof(T) * n, alignof(T), loc), n};
 }
 template <typename T> void free(Allocator *a, Slice<T> memory) {
     a->free(a, {(u8 *)memory.ptr, sizeof(T) * memory.len}, alignof(T));
@@ -254,64 +261,93 @@ static void debugAllocatorOwn(DebugAllocator *da, Slice<T> mem, Location loc = g
     append(da->parent, &da->locations, {loc, (void *)mem.ptr});
 }
 
-// Arena
-struct ArenaAllocator {
-    Allocator allocator;
-    Slice<u8> mem;
-    usize next_position;
-    FixedStack<usize, 4> prev_positions;
-};
 
+// Arena
 static usize alignPosition(usize position, usize alignment) {
     auto mod = position % alignment;
     return mod ? position + (alignment - mod) : position;
 }
 
-static usize positionFromPointer(void *start, void *ptr) {
-    auto diff = (isize)ptr - (isize)start;
-    assert(diff >= 0);
-    return (usize)diff;
-}
+struct Arena {
+    Slice<u8> memory;
+    usize next_position;
+    usize prev_position;
 
-static u8 *arenaAlloc(Allocator *allocator, usize len, usize alignment,
-                      [[maybe_unused]] Location loc) {
-    auto *aa = (ArenaAllocator *)allocator;
-    auto pos = alignPosition(aa->next_position, alignment);
-    assert((pos + len) <= aa->mem.len);
-    push(&aa->prev_positions, aa->next_position);
-    aa->next_position = pos + len;
-    return aa->mem.ptr + pos;
-}
-
-static u8 *arenaRealloc(Allocator *allocator, Slice<u8> memory, usize alignment, usize new_len,
-                        Location loc) {
-    auto *aa = (ArenaAllocator *)allocator;
-    if (memory.ptr == 0 or aa->prev_positions.len == 0) {
-        return arenaAlloc(allocator, new_len, alignment, loc);
+    void init(usize size) {
+        memory = {.ptr = (u8 *)malloc(size), .len = size};
+        next_position = 0;
+        prev_position = 0;
     }
-    auto diff = positionFromPointer(aa->mem.ptr, memory.ptr);
-    assert(diff <= aa->mem.len);
-    auto pos = alignPosition(diff, alignment);
-    if (pos != alignPosition(peek(&aa->prev_positions), alignment)) {
-        return arenaAlloc(allocator, new_len, alignment, loc);
-    }
-    assert((pos + new_len) <= aa->mem.len);
-    aa->next_position = pos + new_len;
-    return aa->mem.ptr + pos;
-}
+    void deinit() const { free(memory.ptr); }
 
-static void arenaFree(Allocator *allocator, Slice<u8> memory, usize alignment) {
-    auto *aa = (ArenaAllocator *)allocator;
-    if (aa->prev_positions.len == 0) return;
-    if (memory.ptr == 0) return;
-    auto diff = positionFromPointer(aa->mem.ptr, memory.ptr);
-    assert(diff <= aa->mem.len);
-    if (diff == alignPosition(peek(&aa->prev_positions), alignment)) {
-        aa->next_position = pop(&aa->prev_positions);
+    template <typename T>
+    Slice<T> pushSlice(usize len, bool zero = true, usize alignment = alignof(T)) {
+        usize pos = alignPosition(next_position, alignment);
+        auto size = sizeof(T) * len;
+        if ((pos + size) > memory.len) {
+            printf("You need more memory: %.02fM\n", f32(pos + size) / 1024 / 1024);
+            assert((pos + size) <= memory.len);
+        }
+        prev_position = pos;
+        next_position = pos + size;
+        if (zero) memset(memory.ptr + pos, 0, size);
+        return {(T *)(memory.ptr + pos), len};
     }
-}
 
-static ArenaAllocator arenaAllocatorInit(Slice<u8> mem) {
-    return {.allocator = {.alloc = arenaAlloc, .realloc = arenaRealloc, .free = arenaFree},
-            .mem = mem};
+    template <typename T> T *push(bool zero = true, usize alignment = alignof(u8)) {
+        return (T *)pushSlice<T>(1, zero, alignment).ptr;
+    }
+
+    template <typename T>
+    Slice<T> realloc(Slice<T> slice, usize new_len, bool zero = true,
+                     usize alignment = alignof(T)) {
+        if (slice.ptr == 0) return pushSlice<T>(new_len, zero, alignment);
+        auto pos = isize(slice.ptr) - isize(memory.ptr);
+        assert(pos >= 0 and pos < memory.len);
+        usize old_size = sizeof(T) * slice.len;
+        usize new_size = sizeof(T) * new_len;
+        if ((usize)pos != prev_position) {
+            Slice<T> out_slice = pushSlice<T>(new_len, zero, alignment);
+            memcpy(out_slice.ptr, slice.ptr, min(new_size, old_size));
+            return out_slice;
+        }
+        assert((pos % alignment) == 0);
+        if ((pos + new_size) > memory.len) {
+            printf("You need more memory: %.02fM\n", f32(pos + new_size) / 1024.0F / 1024.0F);
+            assert((pos + new_size) <= memory.len);
+        }
+        if (zero and (new_size > old_size)) {
+            memset(memory.ptr + pos + old_size, 0, new_size - old_size);
+        }
+        next_position = pos + new_size;
+        return {(T *)slice.ptr, new_len};
+    }
+};
+
+struct ScopeArena {
+    Arena *arena;
+    usize position;
+    ScopeArena(Arena *arena) : arena(arena) {
+        printf("ScopeArena: %.02fM\n", f32(arena->next_position) / 1024.0F / 1024.0);
+        position = arena->next_position;
+    }
+    ~ScopeArena() {
+        printf("~ScopeArena: %.02fM\n", f32(arena->next_position) / 1024.0F / 1024.0F);
+        arena->next_position = position;
+        printf("~ScopeArena: %.02fM\n", f32(arena->next_position) / 1024.0F / 1024.0F);
+    }
+};
+
+static Slice<char> allocFormatSentinel(Arena *arena, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    va_list args_copy;
+    va_copy(args_copy, args);
+    const auto len = vsnprintf(0, 0, format, args_copy);
+    va_end(args_copy);
+    assert(len >= 0);
+    auto memory = arena->pushSlice<char>(len + 1);
+    assert(vsnprintf(memory.ptr, memory.len, format, args) == len);
+    va_end(args);
+    return memory;
 }

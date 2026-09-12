@@ -1,3 +1,5 @@
+#pragma once
+
 #include "skn.cpp"
 #include "skn_math.cpp"
 
@@ -50,24 +52,36 @@ static void uploadToGPUBuffer(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer 
 struct Texture {
     ivec2 size;
     SDL_GPUTexture *ptr;
+
+    static bool create(SDL_GPUDevice *device, ivec2 size, Texture *out_texture) {
+        SDL_GPUTextureCreateInfo createinfo = {};
+        createinfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+        createinfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+        createinfo.width = size.x;
+        createinfo.height = size.y;
+        createinfo.layer_count_or_depth = 1;
+        createinfo.num_levels = 1;
+        out_texture->size.x = size.x;
+        out_texture->size.y = size.y;
+        out_texture->ptr = SDL_CreateGPUTexture(device, &createinfo);
+        return out_texture != 0;
+    }
+
+    static bool load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, const char *file,
+                     Texture *out_texture) {
+        out_texture->ptr = IMG_LoadGPUTexture(device, copy_pass, file, &out_texture->size.x,
+                                              &out_texture->size.y);
+        return out_texture != 0;
+    }
+
+    static bool load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, Slice<u8> data,
+    Texture *out_texture) {
+        auto *src = SDL_IOFromConstMem(data.ptr, data.len);
+        out_texture->ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true, &out_texture->size.x,
+                                              &out_texture->size.y);
+        return out_texture != 0;
+    }
 };
-
-static Texture loadTexture(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, const char *file) {
-    Texture texture = {};
-    texture.ptr = IMG_LoadGPUTexture(device, copy_pass, file, &texture.size.x, &texture.size.y);
-    return texture;
-}
-
-static SDL_GPUTexture *createGPUTexture(SDL_GPUDevice *device, ivec2 size) {
-    SDL_GPUTextureCreateInfo createinfo = {};
-    createinfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-    createinfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-    createinfo.width = size.x;
-    createinfo.height = size.y;
-    createinfo.layer_count_or_depth = 1;
-    createinfo.num_levels = 1;
-    return SDL_CreateGPUTexture(device, &createinfo);
-}
 
 // __attribute__((format(printf, 2, 3))) static void bufferPrint(Slice<char> buffer, const char
 // *fmt,

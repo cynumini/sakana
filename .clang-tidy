@@ -40,6 +40,7 @@ Checks: >
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
   -readability-implicit-bool-conversion,
+  -readability-static-accessed-through-instance,
   -readability-magic-numbers
 
 ExcludeHeaderFilterRegex: '/usr/include/gentoo'
