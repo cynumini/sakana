@@ -75,24 +75,13 @@ struct Texture {
     }
 
     static bool load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, Slice<u8> data,
-    Texture *out_texture) {
+                     Texture *out_texture) {
         auto *src = SDL_IOFromConstMem(data.ptr, data.len);
-        out_texture->ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true, &out_texture->size.x,
-                                              &out_texture->size.y);
+        out_texture->ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true,
+                                                 &out_texture->size.x, &out_texture->size.y);
         return out_texture != 0;
     }
 };
-
-// __attribute__((format(printf, 2, 3))) static void bufferPrint(Slice<char> buffer, const char
-// *fmt,
-//                                                               ...) {
-//     va_list args;
-//     va_start(args, fmt);
-
-//     auto result = SDL_vsnprintf(buffer.ptr, buffer.len, fmt, args);
-//     va_end(args);
-//     SDL_assert(result >= 0 and usize(result) < buffer.len);
-// }
 
 // SDL allocator
 static u8 *sdlAlloc([[maybe_unused]] Allocator *allocator, usize len,
@@ -112,7 +101,12 @@ static void sdlFree([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
 }
 
 static Allocator sdl_allocator = {
-    .alloc = sdlAlloc,
-    .realloc = sdlRealloc,
-    .free = sdlFree,
+    .allocFn = sdlAlloc,
+    .reallocFn = sdlRealloc,
+    .freeFn = sdlFree,
+};
+
+/// Don't forget sdl_allocator.free on result
+Slice<char *> globDirectory(const char *path, const char *pattern, SDL_GlobFlags flags) {
+    return Slice<char *>::zFromZ(SDL_GlobDirectory(path, pattern, flags, 0));
 };
