@@ -8,17 +8,19 @@
 
 const u8 MAX_TEXTURE_SAMPLERS = 16;
 
-#define SDL_CHECK(cond, desc)                                                                    \
+#define SDL_CHECK2(cond, file, line)                                                             \
     do {                                                                                         \
         if (!(cond)) {                                                                           \
-            SDL_Log("Couldn't " desc ": %s", SDL_GetError());                                    \
+            SDL_Log("%s:%d: error: %s", file, line, SDL_GetError());                             \
             return SDL_APP_FAILURE;                                                              \
         }                                                                                        \
-    } while (false);
+    } while (false)
+
+#define SDL_CHECK(cond) SDL_CHECK2(cond, __FILE__, __LINE__)
 
 static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> code,
-                                      SDL_GPUShaderStage stage, u32 num_samplers,
-                                      u32 num_uniform_buffers) {
+                                      SDL_GPUShaderStage stage, uint num_samplers,
+                                      uint num_uniform_buffers) {
     SDL_GPUShaderCreateInfo createinfo = {};
     createinfo.code_size = code.len;
     createinfo.code = code.ptr;
@@ -61,10 +63,9 @@ struct Texture {
         createinfo.height = size.y;
         createinfo.layer_count_or_depth = 1;
         createinfo.num_levels = 1;
-        out_texture->size.x = size.x;
-        out_texture->size.y = size.y;
+        out_texture->size = size;
         out_texture->ptr = SDL_CreateGPUTexture(device, &createinfo);
-        return out_texture != 0;
+        return out_texture->ptr!= 0;
     }
 
     static bool load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, const char *file,
@@ -79,34 +80,32 @@ struct Texture {
         auto *src = SDL_IOFromConstMem(data.ptr, data.len);
         out_texture->ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true,
                                                  &out_texture->size.x, &out_texture->size.y);
-        return out_texture != 0;
+        return out_texture->ptr != 0;
+    }
+
+    void uploadToGPU(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer *transfer_buffer,
+                     URect region) {
+        const SDL_GPUTextureTransferInfo source = {.transfer_buffer = transfer_buffer};
+        const SDL_GPUTextureRegion destination = {
+            .texture = ptr,
+            .x = region.x,
+            .y = region.y,
+            .w = region.w,
+            .h = region.h,
+            .d = 1,
+        };
+        SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
     }
 };
 
-// SDL allocator
-static u8 *sdlAlloc([[maybe_unused]] Allocator *allocator, usize len,
-                    [[maybe_unused]] usize alignment, [[maybe_unused]] Location loc) {
-    return (u8 *)SDL_malloc(len);
-}
-
-static u8 *sdlRealloc([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
-                      [[maybe_unused]] usize alignment, usize new_len,
-                      [[maybe_unused]] Location loc) {
-    return (u8 *)SDL_realloc(memory.ptr, new_len);
-}
-
-static void sdlFree([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
-                    [[maybe_unused]] usize alignment) {
-    SDL_free(memory.ptr);
-}
-
-static Allocator sdl_allocator = {
-    .allocFn = sdlAlloc,
-    .reallocFn = sdlRealloc,
-    .freeFn = sdlFree,
+/// Don't forget sdl_allocator.free on result
+Slice<char *, true> globDirectory(const char *path, const char *pattern, SDL_GlobFlags flags) {
+    return Slice<char *, true>::fromZ(SDL_GlobDirectory(path, pattern, flags, 0));
 };
 
-/// Don't forget sdl_allocator.free on result
-Slice<char *> globDirectory(const char *path, const char *pattern, SDL_GlobFlags flags) {
-    return Slice<char *>::zFromZ(SDL_GlobDirectory(path, pattern, flags, 0));
+static Allocator sdl_allocator = {
+    .malloc = SDL_malloc,
+    .free = SDL_free,
+    .calloc = SDL_calloc,
+    .realloc = SDL_realloc,
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -18,14 +19,7 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef float f32;
-static_assert(sizeof(f32) == 4);
-typedef double f64;
-static_assert(sizeof(f64) == 8);
-
 typedef unsigned int uint;
-typedef size_t usize;
-typedef ptrdiff_t isize;
 
 #define KB(value) ((value) * 1024UL)
 #define MB(value) (KB(value) * 1024UL)
@@ -47,117 +41,126 @@ template <typename F> privDefer<F> defer_func(F f) { return privDefer<F>(f); }
 #define DEFER_3(x) DEFER_2(x, __COUNTER__)
 #define defer(code) auto DEFER_3(_defer_) = defer_func([&]() { code; })
 
-// Location
-struct Location {
-    const char *file;
-    usize line;
-};
-
-static Location getLocation(const char *file = __builtin_FILE(), usize line = __builtin_LINE()) {
-    return Location{file, line};
-}
-
-[[noreturn]] static inline void panic(const char *message, Location loc = getLocation()) {
-    printf("%s:%lu: panic: %s\n", loc.file, loc.line, message);
-    abort();
-}
-
-template <typename T> usize lenZ(T *array) {
-    usize len = 0;
+template <typename T> size_t lenZ(T *array) {
+    size_t len = 0;
     while (array[len] != 0) len++;
     return len;
 }
 
 // Slice
-template <typename T> struct Slice {
+template <typename T, bool zero = false> struct Slice {
     T *ptr;
-    usize len;
-    bool zero;
-    T &operator[](usize index) { return ptr[index]; }
-    const T &operator[](usize index) const { return ptr[index]; }
+    size_t len;
+    T &operator[](size_t index) { return ptr[index]; }
+    const T &operator[](size_t index) const { return ptr[index]; }
     T *begin() { return ptr; }
     T *end() { return ptr + len; }
-    usize size() { return sizeof(T) * (zero ? len + 1 : len); }
-    static Slice<T> fromZ(T *array) { return {array, lenZ(array), false}; }
-    static Slice<T> zFromZ(T *array) { return {array, lenZ(array), true}; }
+    size_t size() { return sizeof(T) * (zero ? len + 1 : len); }
+    static Slice<T, zero> fromZ(T *array) { return {array, lenZ(array)}; }
 };
 
 // String
-typedef Slice<const char> ConstString;
+typedef Slice<char, true> StringZ;
 typedef Slice<char> String;
+typedef Slice<const char, true> ConstStringZ;
+typedef Slice<const char> ConstString;
 
 // Array
-template <typename T, usize N> struct Array {
+template <typename T, size_t N> struct Array {
     T data[N];
-    static constexpr usize len = N;
-    T &operator[](usize index) { return data[index]; }
-    const T &operator[](usize index) const { return data[index]; }
+    static constexpr size_t len = N;
+    T &operator[](size_t index) { return data[index]; }
+    const T &operator[](size_t index) const { return data[index]; }
     T *begin() { return data; }
     T *end() { return data + len; }
 };
 
 #define ARRAY_LEN(array) (sizeof(array) / sizeof((array)[0]))
 
-// Allocator interface
 struct Allocator {
-    u8 *(*allocFn)(Allocator *, usize len, usize alignment, Location loc);
-    u8 *(*reallocFn)(Allocator *, Slice<u8> memory, usize alignment, usize new_len, Location loc);
-    void (*freeFn)(Allocator *, Slice<u8> memory, usize alignment);
+    void *(*malloc)(size_t size);
+    void (*free)(void *p);
+    void *(*calloc)(size_t n, size_t size);
+    void *(*realloc)(void *p, size_t size);
+};
 
-    template <typename T> T *create(Location loc = getLocation()) {
-        return (T *)allocFn(this, sizeof(T), alignof(T), loc);
+// Allocator interface
+struct AllocatorOld {
+    struct VTable {
+        u8 *(*mallocFn)(void *, size_t size, size_t alignment);
+        void (*freeFn)(void *, Slice<u8> mem, size_t alignment);
+        u8 *(*callocFn)(void *, size_t n, size_t size, size_t alignment);
+        u8 *(*reallocFn)(void *, Slice<u8> mem, size_t alignment, size_t new_len);
+    };
+    void *ptr;
+    const VTable *vtable;
+
+    template <typename T, bool zero = false> T *create() {
+        if constexpr (zero) return (T *)vtable->mallocFn(ptr, sizeof(T), alignof(T));
+        return (T *)vtable->callocFn(ptr, 1, sizeof(T), alignof(T));
     }
 
-    template <typename T> void destroy(T *ptr) {
-        freeFn(this, {(u8 *)ptr, sizeof(T), false}, alignof(T));
+    template <typename T> void destroy(T *value) {
+        vtable->freeFn(ptr, {(u8 *)value, sizeof(T)}, alignof(T));
     }
 
-    template <typename T>
-    Slice<T> alloc(usize n, bool zero = false, Location loc = getLocation()) {
-        auto *ptr = (T *)allocFn(this, sizeof(T) * n, alignof(T), loc);
-        if (zero) memset(ptr, 0, sizeof(T) * n);
-        return {ptr, n, false};
+    template <typename T, bool zero = false> Slice<T> alloc(size_t n) {
+        if constexpr (zero) {
+            return {(T *)vtable->callocFn(ptr, n, sizeof(T), alignof(T)), n};
+        }
+        return {(T *)vtable->mallocFn(ptr, sizeof(T) * n, alignof(T)), n};
     }
 
-    template <typename T>
-    Slice<T> allocZ(usize n, bool zero = false, Location loc = getLocation()) {
-        auto mem = alloc<T>(n + 1, zero, loc);
-        if (!zero) mem.ptr[n] = 0;
-        return {mem.ptr, n, true};
+    template <typename T, bool zero = false> Slice<T, true> allocZ(size_t n) {
+        auto mem = alloc<T, zero>(n + 1);
+        if constexpr (!zero) mem.ptr[n] = 0;
+        return {mem.ptr, n};
     }
 
-    template <typename T> void free(Slice<T> memory) {
-        freeFn(this, {(u8 *)memory.ptr, memory.size(), false}, alignof(T));
+    template <typename T, bool zero> void free(Slice<T, zero> mem) {
+        vtable->freeFn(ptr, {(u8 *)mem.ptr, mem.size()}, alignof(T));
     }
 
-    template <typename T>
-    Slice<T> realloc(Slice<T> old_mem, usize new_n, Location loc = getLocation()) {
-        if (old_mem.zero) {
+    template <typename T, bool zero = false>
+    Slice<T, zero> realloc(Slice<T, zero> old_mem, size_t new_n) {
+        if constexpr (zero) {
             auto new_size = sizeof(T) * (new_n + 1);
-            auto ptr = (T *)reallocFn(this, {(u8 *)old_mem.ptr, old_mem.size(), false},
-                                      alignof(T), new_size, loc);
-            ptr[new_n] = {};
-            return {ptr, new_n, true};
+            auto value = (T *)vtable->reallocFn(ptr, {(u8 *)old_mem.ptr, old_mem.size()},
+                                                alignof(T), new_size);
+            value[new_n] = {};
+            return {value, new_n, true};
         }
         return {
-            (T *)reallocFn(this, {(u8 *)old_mem.ptr, old_mem.size(), false}, alignof(T),
-                           sizeof(T) * new_n, loc),
+            (T *)vtable->reallocFn(ptr, {(u8 *)old_mem.ptr, old_mem.size()}, alignof(T),
+                                   sizeof(T) * new_n),
             new_n,
-            false,
         };
     }
 
-    String dupeAndFree(const char *str_z, Allocator *source, Location loc = getLocation()) {
-        auto slice_z = ConstString::zFromZ(str_z);
-        auto slice_out = alloc<char>(slice_z.len, false, loc);
+    StringZ dupeZ(const char *string) {
+        auto len = strlen(string);
+        auto slice_out = allocZ<char, false>(len);
+        memcpy(slice_out.ptr, string, len);
+        return slice_out;
+    }
+
+    template <typename T> StringZ dupeZ(Slice<T> string) {
+        auto slice_out = allocZ<char, false>(string.len);
+        memcpy(slice_out.ptr, string.ptr, string.len);
+        return slice_out;
+    }
+
+    String dupeAndFree(const char *str_z, AllocatorOld *source) {
+        auto slice_z = ConstString::fromZ(str_z);
+        auto slice_out = alloc<char, false>(slice_z.len);
         memcpy(slice_out.ptr, slice_z.ptr, slice_out.len);
         source->free(slice_z);
         return slice_out;
     }
 
-    String dupeAndFreeZ(const char *str_z, Allocator *source, Location loc = getLocation()) {
-        auto slice_z = ConstString::zFromZ(str_z);
-        auto slice_out = allocZ<char>(slice_z.len, false, loc);
+    StringZ dupeAndFreeZ(const char *str_z, AllocatorOld *source) {
+        auto slice_z = ConstString::fromZ(str_z);
+        auto slice_out = allocZ<char, false>(slice_z.len);
         memcpy(slice_out.ptr, slice_z.ptr, slice_out.len);
         source->free(slice_z);
         return slice_out;
@@ -167,14 +170,14 @@ struct Allocator {
     //                                 Location loc = getLocation()) {
     //     auto slice_z = Slice<const char *>::zFromZ(array);
     //     auto slice_out = alloc<String>(slice_z.len, loc);
-    //     for (usize i = 0; i < slice_z.len; i++) {
+    //     for (size_t i = 0; i < slice_z.len; i++) {
     //         slice_out[i] = dupeAndFreeZ(slice_z[i], source, loc);
     //     }
     //     source->free(slice_z);
     //     return slice_out;
     // }
 
-    String allocFormatZ(const char *format, ...) __attribute__((format(gnu_printf, 2, 3))) {
+    StringZ allocFormatZ(const char *format, ...) __attribute__((format(gnu_printf, 2, 3))) {
         va_list args;
         va_start(args, format);
         va_list args_copy;
@@ -190,57 +193,81 @@ struct Allocator {
 };
 
 // C allocator
-static u8 *cAlloc([[maybe_unused]] Allocator *allocator, usize len,
-                  [[maybe_unused]] usize alignment, [[maybe_unused]] Location loc) {
-    return (u8 *)malloc(len);
-}
-
-static u8 *cRealloc([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
-                    [[maybe_unused]] usize alignment, usize new_len,
-                    [[maybe_unused]] Location loc) {
-    return (u8 *)realloc(memory.ptr, new_len);
-}
-
-static void cFree([[maybe_unused]] Allocator *allocator, Slice<u8> memory,
-                  [[maybe_unused]] usize alignment) {
-    free(memory.ptr);
-}
-
 static Allocator c_allocator = {
-    .allocFn = cAlloc,
-    .reallocFn = cRealloc,
-    .freeFn = cFree,
+    .malloc = malloc,
+    .free = free,
+    .calloc = calloc,
+    .realloc = realloc,
 };
+// static u8 *cMalloc([[maybe_unused]] void *ctx, size_t size, [[maybe_unused]] size_t alignment) {
+//     return (u8 *)malloc(size);
+// }
+
+// static u8 *cCalloc([[maybe_unused]] void *ctx, size_t n, size_t size,
+//                    [[maybe_unused]] size_t alignment) {
+//     return (u8 *)calloc(n, size);
+// }
+
+// static u8 *cRealloc([[maybe_unused]] void *ctx, Slice<u8> memory,
+//                     [[maybe_unused]] size_t alignment, size_t new_size) {
+//     return (u8 *)realloc(memory.ptr, new_size);
+// }
+
+// static void cFree([[maybe_unused]] void *ctx, Slice<u8> mem, [[maybe_unused]] size_t alignment) {
+//     free(mem.ptr);
+// }
+// const static AllocatorOld::VTable c_allocator_vtable = {
+//     .mallocFn = cMalloc,
+//     .freeFn = cFree,
+//     .callocFn = cCalloc,
+//     .reallocFn = cRealloc,
+// };
+// static AllocatorOld c_allocator = {.vtable = &c_allocator_vtable};
 
 // Dynamic
 template <typename T> struct Dynamic {
     // items's len is capacity
     Slice<T> items;
-    usize len;
+    size_t len;
 
-    T &operator[](usize index) { return items[index]; }
+    T &operator[](size_t index) { return items[index]; }
     T *begin() { return items.ptr; }
     T *end() { return items.ptr + len; }
 
-    void deinit(Allocator *a) { a->free(items); }
+    void deinit(AllocatorOld *a) { a->free(items); }
 
-    void append(Allocator *a, T value, Location loc = getLocation()) {
+    void append(AllocatorOld *a, T value) {
         if (len == items.len) {
             auto capacity = items.len;
             capacity = capacity ? capacity * 2 : 1;
             assert(capacity > items.len);
-            items = a->realloc(items, capacity, loc);
+            items = a->realloc(items, capacity);
         }
         items[len++] = value;
     }
 };
 
+// Fixed
+template <typename T> struct Fixed {
+    Slice<T> items;
+    size_t len;
+
+    T &operator[](size_t index) { return items[index]; }
+    T *begin() { return items.ptr; }
+    T *end() { return items.ptr + len; }
+
+    void append(T value) {
+        assert(len <= items.len);
+        items[len++] = value;
+    }
+};
+
 // FixedStack
-template <typename T, usize N> struct FixedStack {
+template <typename T, size_t N> struct FixedStack {
     static_assert(N > 0);
     Array<T, N> items;
-    usize len;
-    usize next;
+    size_t len;
+    size_t next;
 
     void push(T value) {
         items.data[next] = value;
@@ -262,112 +289,154 @@ template <typename T, usize N> struct FixedStack {
     }
 };
 
-// Debug Allocator
-struct AllocationLocation {
-    Location location;
-    void *mem;
-};
+// // Debug Allocator
+// struct AllocationLocation {
+//     Location location;
+//     void *mem;
+// };
 
-struct DebugAllocator {
-    Allocator allocator;
-    Allocator *parent;
-    Dynamic<AllocationLocation> locations;
+// struct DebugAllocator {
+//     Allocator *parent;
+//     Dynamic<AllocationLocation> locations;
 
-    static DebugAllocator init(Allocator *parent) {
-        return {
-            .allocator =
-                {
-                    .allocFn = allocFn,
-                    .reallocFn = reallocFn,
-                    .freeFn = freeFn,
-                },
-            .parent = parent,
-            .locations = {},
-        };
-    }
+//     static u8 *allocFn(void *ctx, size_t len, size_t alignment, Location loc) {
+//         auto *da = (DebugAllocator *)ctx;
 
-    static void deinit(DebugAllocator *da) {
-        for (auto &location : da->locations) {
-            if (location.mem != 0) {
-                printf("%s:%zu:0: memory leak\n", location.location.file, location.location.line);
-            }
-        }
-        da->locations.deinit(da->parent);
-    }
+//         u8 *mem = da->parent->vtable->allocFn(da->parent, len, alignment, loc);
+//         assert(mem);
 
-    static u8 *allocFn(Allocator *allocator, usize len, usize alignment, Location loc) {
-        auto *da = (DebugAllocator *)allocator;
+//         da->locations.append(da->parent, {loc, mem});
 
-        u8 *mem = da->parent->allocFn(da->parent, len, alignment, loc);
-        assert(mem);
+//         return mem;
+//     }
 
-        da->locations.append(da->parent, {loc, mem});
+//     static u8 *reallocFn(void *ctx, Slice<u8> memory, size_t alignment, size_t new_len,
+//                          Location loc) {
+//         auto *da = (DebugAllocator *)ctx;
+//         if (memory.ptr == 0) return allocFn(ctx, new_len, alignment, loc);
 
-        return mem;
-    }
+//         u8 *new_mem = da->parent->vtable->reallocFn(da->parent, memory, alignment, new_len,
+//         loc); assert(new_mem);
 
-    static u8 *reallocFn(Allocator *allocator, Slice<u8> memory, usize alignment, usize new_len,
-                         Location loc) {
-        auto *da = (DebugAllocator *)allocator;
-        if (memory.ptr == 0) return allocFn(allocator, new_len, alignment, loc);
+//         for (auto &location : da->locations) {
+//             if (location.mem == memory.ptr) {
+//                 location = {loc, new_mem};
+//                 break;
+//             }
+//         }
 
-        u8 *new_mem = da->parent->reallocFn(da->parent, memory, alignment, new_len, loc);
-        assert(new_mem);
+//         return new_mem;
+//     }
 
-        for (auto &location : da->locations) {
-            if (location.mem == memory.ptr) {
-                location = {loc, new_mem};
-                break;
-            }
-        }
+//     static void freeFn(void *ctx, Slice<u8> memory, size_t alignment) {
+//         auto *da = (DebugAllocator *)ctx;
 
-        return new_mem;
-    }
+//         for (auto &location : da->locations) {
+//             if (location.mem == memory.ptr) {
+//                 location.mem = 0;
+//                 break;
+//             }
+//         }
 
-    static void freeFn(Allocator *allocator, Slice<u8> memory, usize alignment) {
-        auto *da = (DebugAllocator *)allocator;
+//         da->parent->vtable->freeFn(da->parent, memory, alignment);
+//     }
 
-        for (auto &location : da->locations) {
-            if (location.mem == memory.ptr) {
-                location.mem = 0;
-                break;
-            }
-        }
+//     constexpr static Allocator::VTable vtable = {
+//         .allocFn = DebugAllocator::allocFn,
+//         .reallocFn = DebugAllocator::reallocFn,
+//         .freeFn = DebugAllocator::freeFn,
+//     };
 
-        da->parent->freeFn(da->parent, memory, alignment);
-    }
-};
+//     Allocator allocator() { return {.ptr = this, .vtable = &vtable}; }
+
+//     static DebugAllocator init(Allocator *parent) {
+//         return {
+//             .parent = parent,
+//             .locations = {},
+//         };
+//     }
+
+//     static void deinit(DebugAllocator *da) {
+//         for (auto &location : da->locations) {
+//             if (location.mem != 0) {
+//                 printf("%s:%hu:0: memory leak\n", location.location.file,
+//                 location.location.line);
+//             }
+//         }
+//         da->locations.deinit(da->parent);
+//     }
+// };
 
 // Arena
 struct Arena {
-    Allocator allocator;
-    Allocator *parent;
-    Slice<u8> memory;
-    usize next_position;
-    usize position;
+    u8 *mem;
+    uint capacity;
+    uint next_position;
+    uint position;
 
-    void init(Allocator *parent, usize size) {
-        allocator = {
-            .allocFn = Arena::allocFn,
-            .reallocFn = Arena::reallocFn,
-            .freeFn = Arena::freeFn,
-        };
-        this->parent = parent;
-        memory = parent->alloc<u8>(size);
-        next_position = 0;
-        position = 0;
+    void init(Allocator a, uint size) {
+        mem = static_cast<u8 *>(a.malloc(size));
+        capacity = size;
     }
 
-    void deinit() const { parent->free(memory); }
+    static u8 *mallocFn(void *ctx, size_t len, size_t alignment) {
+        auto *a = (Arena *)ctx;
+        const size_t pos = alignPosition(a->next_position, alignment);
+        a->checkCapacity(pos + len);
+        a->position = pos;
+        a->next_position = pos + len;
+        return a->mem + pos;
+    }
 
-    static usize alignPosition(usize position, usize alignment) {
+    static u8 *callocFn(void *ctx, size_t n, size_t size, size_t alignment) {
+        size *= n;
+        auto *mem = mallocFn(ctx, size, alignment);
+        memset(mem, 0, size);
+        return mem;
+    }
+
+    static u8 *reallocFn(void *ctx, Slice<u8> memory, size_t alignment, size_t new_len) {
+        auto *a = (Arena *)ctx;
+        if (memory.ptr == 0) return mallocFn(ctx, new_len, alignment);
+        const size_t pos = a->checkAndGetPosition(memory.ptr);
+        if (pos != a->position) {
+            u8 *out_memory = mallocFn(ctx, new_len, alignment);
+            memcpy(out_memory, memory.ptr, min(new_len, memory.len));
+            return out_memory;
+        }
+        assert((pos % alignment) == 0);
+        a->checkCapacity(pos + new_len);
+        a->next_position = pos + new_len;
+        return a->mem + pos;
+    }
+
+    static void freeFn(void *ctx, Slice<u8> memory, [[maybe_unused]] size_t alignment) {
+        auto *a = (Arena *)ctx;
+        if (memory.len == 0) return;
+        const size_t pos = a->checkAndGetPosition(memory.ptr);
+        if (pos == a->position) {
+            a->next_position = pos;
+        }
+    }
+
+    constexpr static AllocatorOld::VTable vtable = {
+        .mallocFn = Arena::mallocFn,
+        .freeFn = Arena::freeFn,
+        .callocFn = Arena::callocFn,
+        .reallocFn = Arena::reallocFn,
+
+    };
+
+    AllocatorOld allocator() { return {.ptr = this, .vtable = &vtable}; }
+
+    static size_t alignPosition(size_t position, size_t alignment) {
         auto mod = position % alignment;
         return mod ? position + (alignment - mod) : position;
     }
 
-    void checkCapacity(usize pos) const {
-        if (pos > memory.len) {
-            auto kb = f32(pos) / 1024.0F;
+    void checkCapacity(size_t pos) const {
+        if (pos > capacity) {
+            auto kb = float(pos) / 1024.0F;
             auto mb = kb / 1024.0F;
             if (pos < 10000) {
                 printf("You need more memory: %luB\n", pos);
@@ -376,78 +445,52 @@ struct Arena {
             } else {
                 printf("You need more memory: %.02fM\n", mb);
             }
-            assert((pos) <= memory.len);
+            assert((pos) <= capacity);
         }
     }
 
-    static u8 *allocFn(Allocator *allocator, usize len, usize alignment,
-                       [[maybe_unused]] Location loc) {
-        auto *a = (Arena *)allocator;
-        const usize pos = alignPosition(a->next_position, alignment);
-        a->checkCapacity(pos + len);
-        a->position = pos;
-        a->next_position = pos + len;
-        return a->memory.ptr + pos;
-    }
-
-    usize checkAndGetPosition(const u8 *ptr) const {
-        auto diff = isize(ptr) - isize(memory.ptr);
+    size_t checkAndGetPosition(const u8 *ptr) const {
+        auto diff = ptrdiff_t(ptr) - ptrdiff_t(mem);
         assert(diff >= 0);
-        auto pos = usize(diff);
-        assert(pos < memory.len);
+        auto pos = size_t(diff);
+        assert(pos < capacity);
         return pos;
     }
 
-    static u8 *reallocFn(Allocator *allocator, Slice<u8> memory, usize alignment, usize new_len,
-                         Location loc) {
-        auto *a = (Arena *)allocator;
-        if (memory.ptr == 0) return allocFn(allocator, new_len, alignment, loc);
-        const usize pos = a->checkAndGetPosition(memory.ptr);
-        if (pos != a->position) {
-            u8 *out_memory = allocFn(allocator, new_len, alignment, loc);
-            memcpy(out_memory, memory.ptr, min(new_len, memory.len));
-            return out_memory;
-        }
-        assert((pos % alignment) == 0);
-        a->checkCapacity(pos + new_len);
-        a->next_position = pos + new_len;
-        return a->memory.ptr + pos;
-    }
-
-    static void freeFn(Allocator *allocator, Slice<u8> memory, [[maybe_unused]] usize alignment) {
-        auto *a = (Arena *)allocator;
-        const usize pos = a->checkAndGetPosition(memory.ptr);
-        if (pos == a->position) {
-            a->next_position = pos;
-        }
+    void reset() {
+        position = 0;
+        next_position = 0;
     }
 };
 
 struct ScopeArena {
     Arena *arena;
-    usize position;
-    usize next_position;
-    ScopeArena(Arena *arena) : arena(arena) {
-        printf("ScopeArena: %.02fM\n", f32(arena->next_position) / 1024.0F / 1024.0);
-        position = arena->position;
-        next_position = arena->next_position;
+    Arena tmp;
+    size_t prev_capacity;
+    ScopeArena(Arena *arena) : arena(arena), tmp({}) {
+        auto free_space = arena->capacity - arena->next_position;
+        auto half_free = free_space / 2;
+        tmp.mem = arena->mem + arena->next_position + half_free;
+        tmp.capacity = half_free;
+        prev_capacity = arena->capacity;
+        arena->capacity = arena->next_position + half_free;
     }
     ~ScopeArena() {
-        printf("~ScopeArena: %.02fM\n", f32(arena->next_position) / 1024.0F / 1024.0F);
-        arena->position = position;
-        arena->next_position = next_position;
-        printf("~ScopeArena: %.02fM\n", f32(arena->next_position) / 1024.0F / 1024.0F);
+        arena->capacity = prev_capacity;
     }
 };
 
-inline usize fnv1aHash(const char *string) {
-    constexpr usize fnv_prime = 1099511628211ULL;
-    constexpr usize fnv_offset_basis = 14695981039346656037ULL;
 
-    usize hash = fnv_offset_basis;
+
+
+inline size_t fnv1aHash(const char *string) {
+    constexpr size_t fnv_prime = 1099511628211ULL;
+    constexpr size_t fnv_offset_basis = 14695981039346656037ULL;
+
+    size_t hash = fnv_offset_basis;
     auto len = strlen(string);
-    for (usize i = 0; i < len; i++) {
-        hash = hash xor (usize) string[i];
+    for (size_t i = 0; i < len; i++) {
+        hash = hash xor (size_t) string[i];
         hash = hash * fnv_prime;
     }
     return hash;
@@ -462,11 +505,17 @@ template <typename T> struct HashMap {
 
     Slice<Item> data;
 
+    static HashMap<T> init(AllocatorOld *a, size_t size) {
+        HashMap<T> self = {};
+        self.resize(a, size);
+        return self;
+    }
+
     enum class PutInSliceResult : u8 { updated, need_resize, put };
     static PutInSliceResult putInSlice(Slice<Item> slice, const char *key, T value) {
         auto hash = fnv1aHash(key);
 
-        for (usize offset = 0; offset < slice.len; offset++) {
+        for (size_t offset = 0; offset < slice.len; offset++) {
             auto index = (hash + offset) % slice.len;
 
             if (slice[index].exist) {
@@ -483,8 +532,8 @@ template <typename T> struct HashMap {
         return PutInSliceResult::need_resize;
     }
 
-    void resize(Allocator *a, Location loc = getLocation()) {
-        auto new_data = a->alloc<Item>(data, data.len ? data.len * 2 : 1, true, loc);
+    void resize(AllocatorOld *a, size_t new_len) {
+        auto new_data = a->alloc<Item, true>(new_len);
         for (const auto &item : data) {
             if (item.exist) {
                 assert(putInSlice(new_data, item.key, item.value) !=
@@ -495,10 +544,12 @@ template <typename T> struct HashMap {
         data = new_data;
     }
 
+    void resize(AllocatorOld *a) { resize(a, data.len ? data.len * 2 : 1); }
+
     Item *getItemByKey(const char *key) {
         auto hash = fnv1aHash(key);
 
-        for (usize offset = 0; offset < data.len; offset++) {
+        for (size_t offset = 0; offset < data.len; offset++) {
             auto index = (hash + offset) % data.len;
 
             if (!data[index].exist) {
@@ -512,11 +563,11 @@ template <typename T> struct HashMap {
         return 0;
     }
 
-    T get() { return getItemByKey().value; }
+    T get(const char *key) { return getItemByKey(key)->value; }
 
     enum class PutResult : u8 { put, updated };
-    PutResult put(Allocator *a, const char *key, T value, Location loc = getLocation()) {
-        if (data.len == 0) resize(a, loc);
+    PutResult put(AllocatorOld *a, const char *key, T value) {
+        if (data.len == 0) resize(a);
         while (true) {
             switch (putInSlice(data, key, value)) {
             case PutInSliceResult::put: {
@@ -526,9 +577,52 @@ template <typename T> struct HashMap {
                 return PutResult::updated;
             }
             case PutInSliceResult::need_resize: {
-                resize(a, loc);
+                resize(a);
             }
             }
         }
     }
+
+    HashMap<T> copy(AllocatorOld *a) {
+        HashMap<T> copy = HashMap<T>::init(a, data.len);
+
+        for (const auto &item : data) {
+            if (item.exist) {
+                copy.put(a, a->dupeZ(item.key).ptr, item.value);
+            }
+        }
+
+        return copy;
+    }
 };
+
+template <typename T> struct Dictionary {
+    struct Item {
+        const char *key;
+        T value;
+    };
+
+    Dynamic<Item> items;
+
+    Item *begin() { return items.items.ptr; }
+    Item *end() { return items.items.ptr + items.len; }
+
+    void put(AllocatorOld *a, const char *key, T value) { items.append(a, {key, value}); }
+
+    void sort(int (*sortFn)(const void *a, const void *b)) {
+        qsort(items.items.ptr, items.len, sizeof(Item), sortFn);
+    }
+};
+
+static ConstString getStem(const char *string) {
+    int pos = -1;
+    auto len = strlen(string);
+    for (int i = int(len) - 1; i >= 0; i--) {
+        if (string[i] == '.') {
+            pos = i;
+            break;
+        }
+    }
+    if (pos == -1) return {string, len};
+    return {string, (size_t)pos};
+}
