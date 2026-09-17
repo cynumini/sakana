@@ -1,7 +1,6 @@
 #pragma once
 
 #include <assert.h>
-#include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -199,30 +198,6 @@ static Allocator c_allocator = {
     .calloc = calloc,
     .realloc = realloc,
 };
-// static u8 *cMalloc([[maybe_unused]] void *ctx, size_t size, [[maybe_unused]] size_t alignment) {
-//     return (u8 *)malloc(size);
-// }
-
-// static u8 *cCalloc([[maybe_unused]] void *ctx, size_t n, size_t size,
-//                    [[maybe_unused]] size_t alignment) {
-//     return (u8 *)calloc(n, size);
-// }
-
-// static u8 *cRealloc([[maybe_unused]] void *ctx, Slice<u8> memory,
-//                     [[maybe_unused]] size_t alignment, size_t new_size) {
-//     return (u8 *)realloc(memory.ptr, new_size);
-// }
-
-// static void cFree([[maybe_unused]] void *ctx, Slice<u8> mem, [[maybe_unused]] size_t alignment) {
-//     free(mem.ptr);
-// }
-// const static AllocatorOld::VTable c_allocator_vtable = {
-//     .mallocFn = cMalloc,
-//     .freeFn = cFree,
-//     .callocFn = cCalloc,
-//     .reallocFn = cRealloc,
-// };
-// static AllocatorOld c_allocator = {.vtable = &c_allocator_vtable};
 
 // Dynamic
 template <typename T> struct Dynamic {
@@ -479,8 +454,6 @@ struct ScopeArena {
         arena->capacity = prev_capacity;
     }
 };
-
-
 
 
 inline size_t fnv1aHash(const char *string) {

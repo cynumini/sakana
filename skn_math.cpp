@@ -4,12 +4,15 @@
 
 #include "skn.cpp"
 
-struct ivec2 {
-    int x;
-    int y;
+template <typename T> struct Vector2 {
+    T x;
+    T y;
 
-    ivec2 operator/(float other) const { return {int(float(x) / other), int(float(y) / other)}; }
+    Vector2 operator/(float other) const { return {T(float(x) / other), T(float(y) / other)}; }
 };
+
+typedef Vector2<int> ivec2;
+typedef Vector2<uint> uvec2;
 
 struct vec2 {
     float x;
@@ -29,23 +32,26 @@ struct vec2 {
     };
 };
 
-struct Rect {
-    float x;
-    float y;
-    float w;
-    float h;
+template <typename T> struct Rectangle {
+    T x;
+    T y;
+    T w;
+    T h;
 
-    vec2 size() { return {w, h}; }
+    Vector2<T> size() { return {w, h}; }
 
-    Rect operator/(float value) const { return {x / value, y / value, w / value, h / value}; }
+    Rectangle operator/(float value) const {
+        return {
+            T(float(x) / value),
+            T(float(y) / value),
+            T(float(w) / value),
+            T(float(h) / value),
+        };
+    }
 };
 
-struct URect {
-    uint x;
-    uint y;
-    uint w;
-    uint h;
-};
+typedef Rectangle<float> Rect;
+typedef Rectangle<uint> URect;
 
 struct Color {
     u8 r;
