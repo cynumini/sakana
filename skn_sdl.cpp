@@ -99,11 +99,6 @@ struct Texture {
     }
 };
 
-/// Don't forget sdl_allocator.free on result
-Slice<char *, true> globDirectory(const char *path, const char *pattern, SDL_GlobFlags flags) {
-    return Slice<char *, true>::fromZ(SDL_GlobDirectory(path, pattern, flags, 0));
-};
-
 static Allocator sdl_allocator = {
     .malloc = SDL_malloc,
     .free = SDL_free,

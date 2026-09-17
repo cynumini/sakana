@@ -9,28 +9,24 @@ template <typename T> struct Vector2 {
     T y;
 
     Vector2 operator/(float other) const { return {T(float(x) / other), T(float(y) / other)}; }
-};
 
-typedef Vector2<int> ivec2;
-typedef Vector2<uint> uvec2;
-
-struct vec2 {
-    float x;
-    float y;
-
-    vec2 operator-() const { return {-x, -y}; }
-    vec2 operator+(ivec2 other) const { return {x + float(other.x), y + float(other.y)}; }
-    vec2 operator-(vec2 other) const { return {x - other.x, y - other.y}; }
-    vec2 operator/(float other) const { return {x / other, y / other}; }
+    // old
+    Vector2 operator-() const { return {-x, -y}; }
+    Vector2 operator+(Vector2<int> other) const { return {x + T(other.x), y + T(other.y)}; }
+    Vector2 operator-(Vector2 other) const { return {x - other.x, y - other.y}; }
 
     float length() const { return sqrtf((x * x) + (y * y)); };
 
-    vec2 normalize() {
+    Vector2 normalize() {
         auto l = length();
         if (l > 0) return {x / l, y / l};
         return *this;
     };
 };
+
+typedef Vector2<int> ivec2;
+typedef Vector2<uint> uvec2;
+typedef Vector2<float> vec2;
 
 template <typename T> struct Rectangle {
     T x;

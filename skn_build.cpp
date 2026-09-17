@@ -138,7 +138,7 @@ static Slice<u8> loadFile(const char *filename) {
 
     assert(fclose(stream) == 0);
 
-    return {data, n};
+    return {n, data};
 }
 
 static const char *binToHpp(const char *input, const char *output, const char *var_name) {
@@ -169,8 +169,8 @@ static const char *binToHpp(const char *input, const char *output, const char *v
         }
 
         assert(fprintf(stream, "\n};\n") >= 0);
-        assert(fprintf(stream, "const Slice<const u8> %s = {.ptr = %s_raw, .len = %lu};\n",
-                       var_name, var_name, data.len) >= 0);
+        assert(fprintf(stream, "const Slice<const u8> %s = {.len = %lu, .ptr = %s_raw};\n",
+                       var_name, data.len, var_name) >= 0);
 
         assert(fclose(stream) == 0);
         free(data.ptr);
