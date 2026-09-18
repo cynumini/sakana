@@ -6,8 +6,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 
-const u8 MAX_TEXTURE_SAMPLERS = 16;
-
 #define SDL_CHECK2(cond, file, line)                                                             \
     do {                                                                                         \
         if (!(cond)) {                                                                           \
@@ -16,12 +14,12 @@ const u8 MAX_TEXTURE_SAMPLERS = 16;
         }                                                                                        \
     } while (false)
 
-#define SDL_CHECK(cond) SDL_CHECK2(cond, __FILE__, __LINE__)
+#define SDL_CHECK(cond) SDL_CHECK2(cond, __FILE__, __LINE__) // NOLINT
 
 static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> code,
                                       SDL_GPUShaderStage stage, uint num_samplers,
                                       uint num_uniform_buffers) {
-    SDL_GPUShaderCreateInfo createinfo = {
+    const SDL_GPUShaderCreateInfo createinfo = {
         .code_size = code.len,
         .code = code.ptr,
         .entrypoint = "main",
@@ -57,7 +55,7 @@ struct Texture {
     SDL_GPUTexture *ptr;
 
     static bool create(SDL_GPUDevice *device, ivec2 size, Texture *texture) {
-        SDL_GPUTextureCreateInfo createinfo = {
+        const SDL_GPUTextureCreateInfo createinfo = {
             .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
             .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
             .width = uint(size.x),
@@ -97,11 +95,4 @@ struct Texture {
         };
         SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
     }
-};
-
-static Allocator sdl_allocator = {
-    .malloc = SDL_malloc,
-    .free = SDL_free,
-    .calloc = SDL_calloc,
-    .realloc = SDL_realloc,
 };

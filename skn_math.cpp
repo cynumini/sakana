@@ -56,23 +56,16 @@ struct Color {
     u8 a;
 };
 
-const Color WHITE = {255, 255, 255, 255};
-const Color BLACK = {0, 0, 0, 255};
-const Color GRAY = {128, 128, 128, 255};
-const Color RED = {255, 0, 0, 255};
-
-struct FColor {
-    float r;
-    float g;
-    float b;
-    float a;
-};
-
-static FColor toFColor(Color color) {
+constexpr Color colorFromHex(u32 value) noexcept {
     return {
-        float(color.r) / 255.0F,
-        float(color.g) / 255.0F,
-        float(color.b) / 255.0F,
-        float(color.a) / 255.0F,
+        .r = u8(value >> 24),
+        .g = u8(value >> 16),
+        .b = u8(value >> 8),
+        .a = u8(value),
     };
 }
+
+const Color WHITE = colorFromHex(0xFFFFFFFF);
+const Color BLACK = colorFromHex(0x000000FF);
+const Color GRAY = colorFromHex(0x808080FF);
+const Color RED = colorFromHex(0xFF0000FF);
