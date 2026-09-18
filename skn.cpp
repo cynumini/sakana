@@ -126,6 +126,10 @@ template <typename T> struct Fixed {
         assert(len <= items.len);
         items[len++] = value;
     }
+
+    void sort(int (*sortFn)(const void *a, const void *b)) {
+        qsort(items.ptr, len, sizeof(T), sortFn);
+    }
 };
 
 // FixedStack
