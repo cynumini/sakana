@@ -266,6 +266,11 @@ struct Arena {
         return {dst.len, dst.ptr};
     }
 
+    SliceZ<const char> dupeConstZ(const char *src) {
+        auto slice_z = dupeZ(src);
+        return {slice_z.len, slice_z.ptr};
+    }
+
     SliceZ<char> dupeZ(const char *src) {
         auto slice_z = allocZ<char>(strlen(src));
         strlcpy(slice_z.ptr, src, slice_z.len + 1);
