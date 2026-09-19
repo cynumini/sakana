@@ -16,6 +16,8 @@
 
 #define SDL_CHECK(cond) SDL_CHECK2(cond, __FILE__, __LINE__) // NOLINT
 
+const u8 MAX_TEXTURE_SAMPLERS = 16;
+
 static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> code,
                                       SDL_GPUShaderStage stage, uint num_samplers,
                                       uint num_uniform_buffers) {

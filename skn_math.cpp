@@ -100,7 +100,7 @@ union Points4 {
         vec2 p1;
         vec2 p2;
         vec2 p3;
-    };
+    } p;
 };
 
 static Points4 calcRectPoints(Rect rect, float angle) {
@@ -135,15 +135,15 @@ static float min(const float values[4]) {
 static bool checkCollisionSAT(Rect a, float a_angle, Rect b, float b_angle) {
     auto a_points = calcRectPoints(a, a_angle);
     auto b_points = calcRectPoints(b, b_angle);
-    const vec2 axes[4] = {a_points.p1 - a_points.p0, a_points.p2 - a_points.p1,
-                          b_points.p1 - b_points.p0, b_points.p2 - b_points.p1};
+    const vec2 axes[4] = {a_points.p.p1 - a_points.p.p0, a_points.p.p2 - a_points.p.p1,
+                          b_points.p.p1 - b_points.p.p0, b_points.p.p2 - b_points.p.p1};
 
     for (size_t i = 0; i < 4; i++) {
-        float a_values[4] = {a_points.p0.dot(axes[i]), a_points.p1.dot(axes[i]),
-                             a_points.p2.dot(axes[i]), a_points.p3.dot(axes[i])};
+        float a_values[4] = {a_points.p.p0.dot(axes[i]), a_points.p.p1.dot(axes[i]),
+                             a_points.p.p2.dot(axes[i]), a_points.p.p3.dot(axes[i])};
 
-        float b_values[4] = {b_points.p0.dot(axes[i]), b_points.p1.dot(axes[i]),
-                             b_points.p2.dot(axes[i]), b_points.p3.dot(axes[i])};
+        float b_values[4] = {b_points.p.p0.dot(axes[i]), b_points.p.p1.dot(axes[i]),
+                             b_points.p.p2.dot(axes[i]), b_points.p.p3.dot(axes[i])};
 
         if (max(a_values) < min(b_values) or max(b_values) < min(a_values)) return false;
     }

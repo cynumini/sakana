@@ -272,6 +272,12 @@ struct Arena {
         return slice_z;
     }
 
+    SliceZ<char> dupeAndFreeZ(const char *src, void (*freeFn)(void *p) = ::free) {
+        auto string = dupeZ(src);
+        freeFn((void *)src);
+        return string;
+    }
+
     SliceZ<char> vAllocPrintZ(const char *fmt, va_list ap) {
         va_list copy;
 
