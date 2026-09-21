@@ -87,6 +87,10 @@ template <typename T, bool zero = false> struct Slice {
 
 template <typename T> using SliceZ = Slice<T, true>;
 
+static Slice<const char> sliceFromStrZ(const char *str) {
+    return {strlen(str), str};
+}
+
 static Slice<const char> getStem(const char *c_str) {
     int pos = -1;
     auto len = strlen(c_str);
@@ -124,13 +128,13 @@ template <typename T> struct Fixed {
 
     size_t append(T value) {
         assert(len <= items.len);
-        size_t index = len;
+        const size_t index = len;
         items[len++] = value;
         return index;
     }
 
-    void sort(int (*sortFn)(const void *a, const void *b)) {
-        qsort(items.ptr, len, sizeof(T), sortFn);
+    void sort(int (*sortFn)(const void *a, const void *b), size_t offset = 0) {
+        qsort(items.ptr + offset, len - offset, sizeof(T), sortFn);
     }
 };
 
