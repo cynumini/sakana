@@ -122,9 +122,11 @@ template <typename T> struct Fixed {
     T *begin() { return items.ptr; }
     T *end() { return items.ptr + len; }
 
-    void append(T value) {
+    size_t append(T value) {
         assert(len <= items.len);
+        size_t index = len;
         items[len++] = value;
+        return index;
     }
 
     void sort(int (*sortFn)(const void *a, const void *b)) {
