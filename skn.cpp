@@ -87,9 +87,7 @@ template <typename T, bool zero = false> struct Slice {
 
 template <typename T> using SliceZ = Slice<T, true>;
 
-static Slice<const char> sliceFromStrZ(const char *str) {
-    return {strlen(str), str};
-}
+static Slice<const char> sliceFromStrZ(const char *str) { return {strlen(str), str}; }
 
 static Slice<const char> getStem(const char *c_str) {
     int pos = -1;
@@ -259,22 +257,11 @@ struct Arena {
         next_position = 0;
     }
 
+    // dupe z
     SliceZ<char> dupeZ(Slice<const char> src) {
         auto slice_z = allocZ<char>(src.len);
         memcpy(slice_z.ptr, src.ptr, src.len);
         return slice_z;
-    }
-
-    Slice<const char> dupeConst(Slice<const char> src) {
-        auto dst = alloc<char>(src.len);
-        assert(dst.ptr != 0);
-        memcpy(dst.ptr, src.ptr, src.len);
-        return {dst.len, dst.ptr};
-    }
-
-    SliceZ<const char> dupeConstZ(const char *src) {
-        auto slice_z = dupeZ(src);
-        return {slice_z.len, slice_z.ptr};
     }
 
     SliceZ<char> dupeZ(const char *src) {
@@ -287,6 +274,22 @@ struct Arena {
         auto string = dupeZ(src);
         freeFn((void *)src);
         return string;
+    }
+
+    // dupe const
+    Slice<const char> dupeConst(Slice<const char> src) {
+        auto dst = alloc<char>(src.len);
+        assert(dst.ptr != 0);
+        memcpy(dst.ptr, src.ptr, src.len);
+        return {dst.len, dst.ptr};
+    }
+
+    Slice<const char> dupeConst(const char *src) { return dupeConst({strlen(src), src}); }
+
+    // dupe const z
+    SliceZ<const char> dupeConstZ(const char *src) {
+        auto slice_z = dupeZ(src);
+        return {slice_z.len, slice_z.ptr};
     }
 
     SliceZ<char> vAllocPrintZ(const char *fmt, va_list ap) {
@@ -429,6 +432,7 @@ template <typename T> struct HashMap {
     }
 
     T get(const char *key) { return getItem({strlen(key), key})->value; }
+    T get(Slice<const char> key) { return getItem(key)->value; }
 
     void put(Arena *a, Slice<const char> key, T value) {
         while (true) {
