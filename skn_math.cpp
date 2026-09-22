@@ -104,18 +104,22 @@ union Points4 {
 };
 
 static Points4 calcRectPoints(Rect rect, float angle) {
-    float half_w = rect.w / 2.0F;
-    float half_h = rect.h / 2.0F;
+    float half_w = rect.w * 0.5F;
+    float half_h = rect.h * 0.5F;
+    vec2 center = {rect.x + half_w, rect.y + half_h};
     Points4 points = {{
         {-half_w, -half_h},
         {half_w, -half_h},
         {half_w, half_h},
         {-half_w, half_h},
     }};
+    float c = cosf(angle);
+    float s = sinf(angle);
     for (size_t i = 0; i < 4; i++) {
-        points.v[i] = {(points.v[i].x * cosf(angle)) - (points.v[i].y * sinf(angle)),
-                       (points.v[i].x * sinf(angle)) + (points.v[i].y * cosf(angle))};
-        points.v[i] += vec2{rect.x, rect.y};
+        float x = points.v[i].x;
+        float y = points.v[i].y;
+        points.v[i] = {(x * c) - (y * s), (x * s) + (y * c)};
+        points.v[i] += center;
     }
     return points;
 }
