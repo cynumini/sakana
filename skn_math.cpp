@@ -84,10 +84,22 @@ constexpr Color colorFromHex(u32 value) noexcept {
     };
 }
 
-const Color WHITE = colorFromHex(0xFFFFFFFF);
-const Color BLACK = colorFromHex(0x000000FF);
-const Color GRAY = colorFromHex(0x808080FF);
-const Color RED = colorFromHex(0xFF0000FF);
+const Color WHITE  = colorFromHex(0xFFFFFFFF);
+const Color BLACK  = colorFromHex(0x000000FF);
+const Color GRAY   = colorFromHex(0x808080FF);
+const Color RED    = colorFromHex(0xFF0000FF);
+const Color GREEN  = colorFromHex(0x00FF00FF);
+const Color BLUE   = colorFromHex(0x0000FFFF);
+const Color YELLOW = colorFromHex(0xFFFF00FF);
+const Color CYAN   = colorFromHex(0x00FFFFFF);
+const Color MAGENTA= colorFromHex(0xFF00FFFF);
+const Color ORANGE = colorFromHex(0xFFA500FF);
+const Color PURPLE = colorFromHex(0x800080FF);
+const Color PINK   = colorFromHex(0xFFC0CBFF);
+const Color BROWN  = colorFromHex(0xA52A2AFF);
+const Color LIME   = colorFromHex(0xBFFF00FF);
+const Color NAVY   = colorFromHex(0x000080FF);
+const Color TEAL   = colorFromHex(0x008080FF);
 
 static bool checkCollisionAABB(Rect a, Rect b) {
     return a.x < (b.x + b.w) and b.x < (a.x + a.w) and a.y < (b.y + b.h) and b.y < (a.y + a.h);
