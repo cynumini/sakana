@@ -13,6 +13,7 @@ template <typename T> struct Vector2 {
     Vector2 operator-() const { return {-x, -y}; }
     Vector2 operator/(float other) const { return {T(float(x) / other), T(float(y) / other)}; }
     Vector2 operator*(float other) const { return {T(float(x) * other), T(float(y) * other)}; }
+    Vector2 operator+(T other) const { return {x + other, y + other}; }
     Vector2 operator+(Vector2 other) const { return {x + other.x, y + other.y}; }
     Vector2 operator-(Vector2 other) const { return {x - other.x, y - other.y}; }
     Vector2 operator*(Vector2 other) const { return {x * other.x, y * other.y}; }

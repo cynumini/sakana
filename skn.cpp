@@ -117,18 +117,19 @@ template <typename T, size_t N> struct Array {
 
 // Fixed
 template <typename T> struct Fixed {
-    Slice<T> items;
     size_t len;
+    Slice<T> items;
+
 
     T &operator[](size_t index) { return items[index]; }
     T *begin() { return items.ptr; }
     T *end() { return items.ptr + len; }
 
-    size_t append(T value) {
+    T* append(T value) {
         assert(len <= items.len);
         const size_t index = len;
         items[len++] = value;
-        return index;
+        return &items[index];
     }
 
     void sort(int (*sortFn)(const void *a, const void *b), size_t offset = 0) {
