@@ -120,12 +120,11 @@ template <typename T> struct Fixed {
     size_t len;
     Slice<T> items;
 
-
     T &operator[](size_t index) { return items[index]; }
     T *begin() { return items.ptr; }
     T *end() { return items.ptr + len; }
 
-    T* append(T value) {
+    T *append(T value) {
         assert(len <= items.len);
         const size_t index = len;
         items[len++] = value;
@@ -176,11 +175,14 @@ struct Arena {
     size_t next_position;
     FixedStack<size_t, 8> positions;
 
-    void init(size_t size) {
+    static Arena init(size_t size) {
+        Arena self = {};
         assert(size > 0);
-        mem = (u8 *)mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-        assert(mem != MAP_FAILED);
-        capacity = size;
+        self.mem =
+            (u8 *)mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        assert(self.mem != MAP_FAILED);
+        self.capacity = size;
+        return self;
     }
 
     void deinit() const { assert(munmap(mem, capacity) == 0); }
@@ -366,6 +368,13 @@ template <typename T> struct Dynamic {
         items[len++] = value;
     }
 
+    void pop() {
+        assert(len > 0);
+        len--;
+    }
+
+    void clear() { len = 0; }
+
     void sort(int (*sortFn)(const void *a, const void *b)) {
         qsort(items.ptr, items.len, sizeof(T), sortFn);
     }
@@ -459,4 +468,10 @@ template <typename T> struct HashMap {
 
         return copy;
     }
+};
+
+struct Context {
+    Arena arena;
+
+    static Context init() { return {Arena::init(MB(1))}; }
 };

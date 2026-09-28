@@ -3,4 +3,3 @@ Completion:
 Diagnostics:
   Suppress:
     - unused-function
-    - unused-includes
