@@ -441,9 +441,3 @@ template <typename T> struct HashMap {
         }
     }
 };
-
-struct Context {
-    Arena arena;
-
-    static Context init() { return {Arena::init(MB(1))}; }
-};

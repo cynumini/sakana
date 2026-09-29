@@ -18,18 +18,25 @@
 
 static const u8 MAX_TEXTURE_SAMPLERS = 16;
 
-static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> code,
-                                      SDL_GPUShaderStage stage, uint num_samplers,
+template <size_t N, size_t M>
+static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, const u8 (&code_spv)[N],
+                                      const u8 (&code_dxil)[M], SDL_GPUShaderStage stage,
+                                      SDL_GPUShaderFormat shader_format, uint num_samplers,
                                       uint num_uniform_buffers) {
-    const SDL_GPUShaderCreateInfo createinfo = {
-        .code_size = code.len,
-        .code = code.ptr,
+    SDL_GPUShaderCreateInfo createinfo = {
         .entrypoint = "main",
-        .format = SDL_GPU_SHADERFORMAT_SPIRV,
+        .format = shader_format,
         .stage = stage,
         .num_samplers = num_samplers,
         .num_uniform_buffers = num_uniform_buffers,
     };
+    if (shader_format == SDL_GPU_SHADERFORMAT_SPIRV) {
+        createinfo.code_size = N;
+        createinfo.code = code_spv;
+    } else {
+        createinfo.code_size = M;
+        createinfo.code = code_dxil;
+    }
     return SDL_CreateGPUShader(device, &createinfo);
 };
 

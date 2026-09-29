@@ -69,22 +69,22 @@ template <size_t N> static bool needsUpdate(const char *output, const char *(&in
     return false;
 }
 
-static void runReplace(Context ctx, Dynamic<const char *> args) {
+static void runReplace(Arena *a, Dynamic<const char *> args) {
     assert(args.len > 0);
     logInfo<false>("run:");
     for (auto &arg : args) printf(" %s", arg);
     putchar('\n');
-    args.append(&ctx.arena, 0);
-    execvp(args[0], (char **)args.items.ptr);
+    args.append(a, 0);
+    execvp(args[0], (char **)args.ptr);
     logError("%s", strerror(errno));
     args.pop();
 }
 
-static void run(Context ctx, Dynamic<const char *> args) {
+static void run(Arena *a, Dynamic<const char *> args) {
     auto pid = fork();
     assert(pid != -1);
     if (pid == 0) {
-        runReplace(ctx, args);
+        runReplace(a, args);
         _exit(1);
     } else {
         int status = 0;
@@ -94,8 +94,7 @@ static void run(Context ctx, Dynamic<const char *> args) {
     }
 }
 
-static void rebuildAndRestartOnChanges(Context ctx, int argc, const char *argv[],
-                                       const char *name) {
+static void rebuildAndRestartOnChanges(Arena *a, int argc, const char *argv[], const char *name) {
     assert(argc >= 1);
 
     auto result = mkdir("./build", 0755);
@@ -108,24 +107,24 @@ static void rebuildAndRestartOnChanges(Context ctx, int argc, const char *argv[]
     if (needsUpdate(program, inputs)) {
         logInfo("self-rebuild");
 
-        auto args = Dynamic<const char *>::init(&ctx.arena, 10);
-        args.append(&ctx.arena, CXX);
-        args.append(&ctx.arena, inputs[0]);
-        args.append(&ctx.arena, "-o");
-        args.append(&ctx.arena, program);
-        args.append(&ctx.arena, "-g");
-        run(ctx, args);
+        auto args = Dynamic<const char *>::init(a, 10);
+        args.append(a, CXX);
+        args.append(a, inputs[0]);
+        args.append(a, "-o");
+        args.append(a, program);
+        args.append(a, "-g");
+        run(a, args);
 
         args.clear();
-        args.append(&ctx.arena, program);
-        runReplace(ctx, args);
+        args.append(a, program);
+        runReplace(a, args);
     }
 }
 
 #define REBUILD_AND_RESTART_ON_CHANGES(ctx, argc, argv)                                          \
     rebuildAndRestartOnChanges(ctx, argc, argv, __FILE__)
 
-template <typename T = char> static Slice<T> loadFile(Context ctx, const char *filename) {
+template <typename T = char> static Slice<T> loadFile(Arena *a, const char *filename) {
     auto *stream = fopen(filename, "rb");
     assert(stream);
     assert(fseek(stream, 0, SEEK_END) == 0);
@@ -135,77 +134,109 @@ template <typename T = char> static Slice<T> loadFile(Context ctx, const char *f
     assert(fseek(stream, 0, SEEK_SET) == 0);
     assert(n % sizeof(T) == 0);
     size_t count = n / sizeof(T);
-    auto data = ctx.arena.alloc<T>(count);
+    auto data = a->alloc<T>(count);
     assert(fread(data.ptr, sizeof(T), count, stream) == count);
     assert(fclose(stream) == 0);
     return data;
 }
 
-static void addArgsFromCompileFlags(Context ctx, Dynamic<const char *> *args) {
-    auto data = loadFile(ctx, "compile_flags.txt");
+static void addArgsFromCompileFlags(Arena *a, Dynamic<const char *> *args) {
+    auto data = loadFile(a, "compile_flags.txt");
     uint offset = 0;
     for (uint i = 0; i < data.len; i++) {
         if (data.ptr[i] == '\n') {
             if (i > offset) {
-                args->append(&ctx.arena, ctx.arena.dupeZ({i - offset, data.ptr + offset}).ptr);
+                args->append(a, a->dupeZ({i - offset, data.ptr + offset}).ptr);
             }
             offset = i + 1;
         }
     }
     if (offset < data.len) {
-        args->append(&ctx.arena, ctx.arena.dupeZ({data.len - offset, data.ptr + offset}).ptr);
+        args->append(a, a->dupeZ({data.len - offset, data.ptr + offset}).ptr);
     }
 }
 
-static const char *glslc(Context ctx, const char *input, const char *output) {
+static const char *glslc(Arena *a, const char *input, const char *output) {
     if (needsUpdate(output, input)) {
-        auto args = Dynamic<const char *>::init(&ctx.arena, 5);
-        args.append(&ctx.arena, "glslc");
-        args.append(&ctx.arena, input);
-        args.append(&ctx.arena, "-o");
-        args.append(&ctx.arena, output);
-        run(ctx, args);
+        auto args = Dynamic<const char *>::init(a, 5);
+        args.append(a, "glslc");
+        args.append(a, input);
+        args.append(a, "-o");
+        args.append(a, output);
+        run(a, args);
     }
     return output;
 }
 
-static const char *binToHpp(Context ctx, const char *input, const char *output,
-                            const char *var_name) {
+static const char *shadercross(Arena *a, const char *input, const char *output) {
     if (needsUpdate(output, input)) {
-        logInfo("generate %s from %s", output, input);
+        auto args = Dynamic<const char *>::init(a, 5);
+        args.append(a, "shadercross");
+        args.append(a, input);
+        args.append(a, "-o");
+        args.append(a, output);
+        run(a, args);
+    }
+    return output;
+}
 
-        auto data = loadFile<u8>(ctx, input);
-        defer(ctx.arena.free(data));
-
+template <size_t N>
+static const char *binToHpp(Arena *a, const char *(&inputs)[N], const char *output,
+                            const char *(&var_names)[N]) {
+    if (needsUpdate(output, inputs)) {
         auto *stream = fopen(output, "w");
         assert(stream);
 
         assert(fprintf(stream, "#pragma once\n\n") >= 0);
         assert(fprintf(stream, "#include <skn.cpp>\n\n") >= 0);
-        assert(fprintf(stream, "const u8 %s_raw[] = {\n    ", var_name) >= 0);
 
-        for (uint i = 0; i < data.len; i++) {
-            if (i == 0) {
-                assert(fprintf(stream, "0x%02x,", data.ptr[i]) >= 0);
-            } else {
-                if (i % 15 == 0) {
-                    assert(fprintf(stream, "\n   ") >= 0);
+        for (size_t i = 0; i < N; i++) {
+            auto input = inputs[i];
+            auto var_name = var_names[i];
+            logInfo("generate %s from %s", output, input);
+
+            auto data = loadFile<u8>(a, input);
+            defer(a->free(data));
+
+            assert(fprintf(stream, "const u8 %s[] = {\n    ", var_name) >= 0);
+
+            for (uint i = 0; i < data.len; i++) {
+                if (i == 0) {
+                    assert(fprintf(stream, "0x%02x,", data.ptr[i]) >= 0);
+                } else {
+                    if (i % 15 == 0) {
+                        assert(fprintf(stream, "\n   ") >= 0);
+                    }
+                    assert(fprintf(stream, " 0x%02x,", (unsigned)data.ptr[i]) >= 0);
                 }
-                assert(fprintf(stream, " 0x%02x,", (unsigned)data.ptr[i]) >= 0);
             }
+            assert(fprintf(stream, "\n};\n") >= 0);
+            if ((i + 1) < N) assert(fprintf(stream, "\n") >= 0);
         }
 
-        assert(fprintf(stream, "\n};\n") >= 0);
-        assert(fprintf(stream, "const Slice<const u8> %s = {.len = %zu, .ptr = %s_raw};\n",
-                       var_name, data.len, var_name) >= 0);
         assert(fclose(stream) == 0);
     }
 
     return output;
 }
 
-static const char *glslcHpp(Context ctx, const char *input, const char *output,
+static const char *binToHpp(Arena *a, const char *input, const char *output,
                             const char *var_name) {
-    const char *filename = ctx.arena.allocPrintZ("%s.spv", output).ptr;
-    return binToHpp(ctx, glslc(ctx, input, filename), output, var_name);
+    const char *inputs[] = {input};
+    const char *var_names[] = {var_name};
+    return binToHpp(a, inputs, output, var_names);
+}
+
+static const char *glslcHpp(Arena *a, const char *input, const char *output,
+                            const char *var_name) {
+    return binToHpp(a, glslc(a, input, a->allocPrintZ("%s.spv", output).ptr), output, var_name);
+}
+
+static const char *shadercrossHpp(Arena *a, const char *input, const char *output,
+                                  const char *var_prefix) {
+    const char *inputs[] = {shadercross(a, input, a->allocPrintZ("%s.spv", output).ptr),
+                            shadercross(a, input, a->allocPrintZ("%s.dxil", output).ptr)};
+    const char *var_names[] = {a->allocPrintZ("%s_spv", var_prefix).ptr,
+                               a->allocPrintZ("%s_dxil", var_prefix).ptr};
+    return binToHpp(a, inputs, output, var_names);
 }
