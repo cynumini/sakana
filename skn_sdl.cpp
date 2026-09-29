@@ -16,7 +16,7 @@
 
 #define SDL_CHECK(cond) SDL_CHECK2(cond, __FILE__, __LINE__) // NOLINT
 
-const u8 MAX_TEXTURE_SAMPLERS = 16;
+static const u8 MAX_TEXTURE_SAMPLERS = 16;
 
 static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, Slice<const u8> code,
                                       SDL_GPUShaderStage stage, uint num_samplers,
@@ -53,10 +53,10 @@ static void uploadToGPUBuffer(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer 
 }
 
 struct Texture {
-    ivec2 size;
+    Vector2i size;
     SDL_GPUTexture *ptr;
 
-    static bool create(SDL_GPUDevice *device, ivec2 size, Texture *texture) {
+    static bool create(SDL_GPUDevice *device, Vector2i size, Texture *texture) {
         const SDL_GPUTextureCreateInfo createinfo = {
             .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
             .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
@@ -85,7 +85,7 @@ struct Texture {
     }
 
     void uploadToGPU(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer *transfer_buffer,
-                     URect region) {
+                     URectangle region) {
         const SDL_GPUTextureTransferInfo source = {.transfer_buffer = transfer_buffer};
         const SDL_GPUTextureRegion destination = {
             .texture = ptr,

@@ -22,9 +22,7 @@ template <bool new_line> void vlog(const char *level, const char *fmt, va_list a
         printf("%s: ", level);
     }
     vprintf(fmt, args);
-    if constexpr (new_line) {
-        putchar('\n');
-    }
+    if constexpr (new_line) putchar('\n');
 }
 
 template <bool new_line = true>
@@ -177,6 +175,7 @@ static const char *binToHpp(Context ctx, const char *input, const char *output,
         logInfo("generate %s from %s", output, input);
 
         auto data = loadFile<u8>(ctx, input);
+        defer(ctx.arena.free(data));
 
         auto *stream = fopen(output, "w");
         assert(stream);
@@ -200,7 +199,6 @@ static const char *binToHpp(Context ctx, const char *input, const char *output,
         assert(fprintf(stream, "const Slice<const u8> %s = {.len = %zu, .ptr = %s_raw};\n",
                        var_name, data.len, var_name) >= 0);
         assert(fclose(stream) == 0);
-        ctx.arena.free(data);
     }
 
     return output;
@@ -208,6 +206,6 @@ static const char *binToHpp(Context ctx, const char *input, const char *output,
 
 static const char *glslcHpp(Context ctx, const char *input, const char *output,
                             const char *var_name) {
-    const char *buffer = ctx.arena.allocPrintZ("%s.spv", output).ptr;
-    return binToHpp(ctx, glslc(ctx, input, buffer), output, var_name);
+    const char *filename = ctx.arena.allocPrintZ("%s.spv", output).ptr;
+    return binToHpp(ctx, glslc(ctx, input, filename), output, var_name);
 }

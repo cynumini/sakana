@@ -22,8 +22,8 @@ typedef uint64_t u64;
 
 typedef unsigned int uint;
 
-#define KB(value) ((value) * 1024UL)
-#define MB(value) (KB(value) * 1024UL)
+#define KB(value) ((value) * 1024)
+#define MB(value) (KB(value) * 1024)
 
 template <typename T> T min(T a, T b) { return a < b ? a : b; }
 template <typename T> T max(T a, T b) { return a > b ? a : b; }
@@ -32,7 +32,7 @@ template <typename T> T max(T a, T b) { return a > b ? a : b; }
 template <typename F> struct privDefer {
     F f;
     privDefer(F f) : f(f) {}
-    ~privDefer() { f(); }
+    ~privDefer() noexcept { f(); }
 };
 
 template <typename F> privDefer<F> defer_func(F f) { return privDefer<F>(f); }
@@ -41,12 +41,6 @@ template <typename F> privDefer<F> defer_func(F f) { return privDefer<F>(f); }
 #define DEFER_2(x, y) DEFER_1(x, y)
 #define DEFER_3(x) DEFER_2(x, __COUNTER__)
 #define defer(code) auto DEFER_3(_defer_) = defer_func([&]() { code; })
-
-template <typename T> size_t lenZ(T *array) {
-    size_t len = 0;
-    while (array[len] != 0) len++;
-    return len;
-}
 
 // Slice
 template <typename T, bool zero = false> struct Slice {
@@ -63,7 +57,7 @@ template <typename T, bool zero = false> struct Slice {
         return ptr[index];
     }
 
-    bool operator==(Slice other) {
+    bool operator==(Slice other) const {
         if (len != other.len) return false;
         for (size_t i = 0; i < len; i++) {
             if (ptr[i] != other[i]) return false;
@@ -83,24 +77,24 @@ template <typename T, bool zero = false> struct Slice {
         static_assert(zero);
         return {len + 1, ptr};
     }
+
+    void sort(int (*sortFn)(const void *a, const void *b), size_t offset = 0) {
+        assert(offset <= len);
+        qsort(ptr + offset, len - offset, sizeof(T), sortFn);
+    }
 };
 
 template <typename T> using SliceZ = Slice<T, true>;
 
 static Slice<const char> sliceFromStrZ(const char *str) { return {strlen(str), str}; }
 
-static Slice<const char> getStem(const char *c_str) {
-    int pos = -1;
-    auto len = strlen(c_str);
-    assert(len);
-    for (int i = int(len - 1); i >= 0; i--) {
-        if (c_str[i] == '.') {
-            pos = i;
-            break;
-        }
+static Slice<const char> getStem(const char *str_z) {
+    ptrdiff_t len = strlen(str_z);
+    assert(len > 0);
+    for (ptrdiff_t i = len - 1; i >= 0; i--) {
+        if (str_z[i] == '.') return {size_t(i), str_z};
     }
-    if (pos == -1) return {len, c_str};
-    return {(size_t)pos, c_str};
+    return {size_t(len), str_z};
 }
 
 // Array
@@ -116,35 +110,27 @@ template <typename T, size_t N> struct Array {
 #define ARRAY_LEN(array) (sizeof(array) / sizeof((array)[0]))
 
 // Fixed
-template <typename T> struct Fixed {
-    size_t len;
-    Slice<T> items;
+template <typename T> struct Fixed : public Slice<T> {
+    size_t capacity;
 
-    T &operator[](size_t index) { return items[index]; }
-    T *begin() { return items.ptr; }
-    T *end() { return items.ptr + len; }
+    static Fixed init(Slice<T> slice) { return {{.ptr = slice.ptr}, slice.len}; };
 
     T *append(T value) {
-        assert(len <= items.len);
-        const size_t index = len;
-        items[len++] = value;
-        return &items[index];
-    }
-
-    void sort(int (*sortFn)(const void *a, const void *b), size_t offset = 0) {
-        qsort(items.ptr + offset, len - offset, sizeof(T), sortFn);
+        assert(this->len < capacity);
+        const size_t index = this->len;
+        this->ptr[this->len++] = value;
+        return &this->ptr[index];
     }
 };
 
 // FixedStack
-template <typename T, size_t N> struct FixedStack {
+template <typename T, size_t N> struct FixedStack : Array<T, N> {
     static_assert(N > 0);
-    Array<T, N> items;
     size_t len;
     size_t next;
 
     void push(T value) {
-        items.data[next] = value;
+        this->data[next] = value;
         next = (next + 1) % N;
         if (len < N) len++;
     }
@@ -153,13 +139,13 @@ template <typename T, size_t N> struct FixedStack {
         assert(len > 0);
         len--;
         next = (N + next - 1) % N;
-        return items.data[next];
+        return this->data[next];
     }
 
     T peek() {
         assert(len > 0);
         auto index = (N + next - 1) % N;
-        return items.data[index];
+        return this->data[index];
     }
 
     void reset() {
@@ -345,39 +331,32 @@ struct ScopeArena {
 };
 
 // Dynamic
-template <typename T> struct Dynamic {
-    // items's len is capacity
-    size_t len;
-    Slice<T> items;
-
-    T &operator[](size_t index) { return items[index]; }
-    T *begin() { return items.ptr; }
-    T *end() { return items.ptr + len; }
+template <typename T> struct Dynamic : public Slice<T> {
+    size_t capacity;
 
     static Dynamic init(Arena *a, size_t initial_capacity) {
-        return {.items = a->alloc<T>(initial_capacity)};
+        auto items = a->alloc<T>(initial_capacity);
+        return {{.ptr = items.ptr}, items.len};
     }
 
-    void deinit(Arena *a) { a->free(items); }
+    void deinit(Arena *a) { a->free({capacity, this->ptr}); }
 
     void append(Arena *a, T value) {
-        if (len == items.len) {
-            auto capacity = items.len ? items.len * 2 : 1;
-            items = a->realloc(items, capacity);
+        if (this->len == capacity) {
+            size_t new_capacity = capacity ? capacity * 2 : 1;
+            auto items = a->realloc(Slice<T>{capacity, this->ptr}, new_capacity);
+            capacity = items.len;
+            this->ptr = items.ptr;
         }
-        items[len++] = value;
+        this->ptr[this->len++] = value;
     }
 
     void pop() {
-        assert(len > 0);
-        len--;
+        assert(this->len > 0);
+        this->len--;
     }
 
-    void clear() { len = 0; }
-
-    void sort(int (*sortFn)(const void *a, const void *b)) {
-        qsort(items.ptr, items.len, sizeof(T), sortFn);
-    }
+    void clear() { this->len = 0; }
 };
 
 inline size_t fnv1aHash(Slice<const char> string) {
@@ -441,8 +420,13 @@ template <typename T> struct HashMap {
         return 0;
     }
 
-    T get(const char *key) { return getItem({strlen(key), key})->value; }
-    T get(Slice<const char> key) { return getItem(key)->value; }
+    T get(Slice<const char> key) {
+        auto item = getItem(key);
+        assert(item);
+        return item->value;
+    }
+
+    T get(const char *key) { return get({strlen(key), key}); }
 
     void put(Arena *a, Slice<const char> key, T value) {
         while (true) {
@@ -455,18 +439,6 @@ template <typename T> struct HashMap {
             a->free(data);
             data = new_data;
         }
-    }
-
-    HashMap<T> copy(Arena *a) {
-        HashMap<T> copy = HashMap<T>::init(a, data.len);
-
-        for (const auto &item : data) {
-            if (item.exist) {
-                copy.put(a, a->dupeZ(item.key).ptr, item.value);
-            }
-        }
-
-        return copy;
     }
 };
 
