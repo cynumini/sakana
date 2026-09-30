@@ -13,9 +13,9 @@ template <typename T> struct Vector2 {
 
     Vector2 operator+(T other) const { return {x + other, y + other}; }
 
-    Vector2 operator+(Vector2 other) const { return {x + other.x, y + other.y}; }
-    Vector2 operator-(Vector2 other) const { return {x - other.x, y - other.y}; }
-    Vector2 operator*(Vector2 other) const { return {x * other.x, y * other.y}; }
+    Vector2 operator+(Vector2 other) const { return {T(x + other.x), T(y + other.y)}; }
+    Vector2 operator-(Vector2 other) const { return {T(x - other.x), T(y - other.y)}; }
+    Vector2 operator*(Vector2 other) const { return {T(x * other.x), T(y * other.y)}; }
 
     T dot(Vector2 other) const { return (x * other.x) + (y * other.y); }
 
@@ -42,6 +42,12 @@ typedef Vector2<float> Vector2f;
 
 static Vector2f operator+(Vector2f a, Vector2i b) { return {a.x + float(b.x), a.y + float(b.y)}; }
 static Vector2f operator-(Vector2i a, Vector2f b) { return {float(a.x) - b.x, float(a.y) - b.y}; }
+
+struct Vector3f {
+    float x;
+    float y;
+    float z;
+};
 
 template <typename T> struct Rectangle : Vector2<T> {
     T w;
@@ -70,6 +76,43 @@ template <typename T> struct Rectangle : Vector2<T> {
 
 typedef Rectangle<float> FRectangle;
 typedef Rectangle<uint> URectangle;
+
+struct Matrix {
+    float m[4][4];
+
+    Matrix operator*(const Matrix &other) const {
+        Matrix r = {};
+        for (size_t y = 0; y < 4; y++)
+            for (size_t x = 0; x < 4; x++)
+                for (size_t i = 0; i < 4; i++) r.m[y][x] += m[y][i] * other.m[i][x];
+        return r;
+    }
+
+    static Matrix scale(Vector3f v) {
+        return {{{v.x, 0.0F, 0.0F, 0.0F},
+                 {0.0F, v.y, 0.0F, 0.0F},
+                 {0.0F, 0.0F, v.z, 0.0F},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    static Matrix translation(Vector3f v) {
+        return {{{1.0F, 0.0F, 0.0F, v.x},
+                 {0.0F, 1.0F, 0.0F, v.y},
+                 {0.0F, 0.0F, 1.0F, v.z},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    static Matrix ortho(float left, float right, float bottom, float top, float near, float far) {
+        float rl = right - left;
+        float tb = top - bottom;
+        float fn = far - near;
+
+        return {{{2.0F / rl, 0.0F, 0.0F, -((right + left) / rl)},
+                 {0.0F, 2.0F / tb, 0.0F, -((top + bottom) / tb)},
+                 {0.0F, 0.0F, 1.0F / fn, -(near / fn)},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+};
 
 struct Color {
     u8 r;
