@@ -77,6 +77,10 @@ template <typename T> struct Rectangle : Vector2<T> {
 typedef Rectangle<float> FRectangle;
 typedef Rectangle<uint> URectangle;
 
+static constexpr float deg2rad(float degrees) { return degrees * (M_PI / 180.0F); }
+
+static constexpr float rad2deg(float radians) { return radians * (180.0F / M_PI); }
+
 struct Matrix {
     float m[4][4];
 
@@ -110,6 +114,39 @@ struct Matrix {
         return {{{2.0F / rl, 0.0F, 0.0F, -((right + left) / rl)},
                  {0.0F, 2.0F / tb, 0.0F, -((top + bottom) / tb)},
                  {0.0F, 0.0F, 1.0F / fn, -(near / fn)},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    // Pitch: rotate around X axis.
+    static Matrix rotationX(float angle) {
+        float c = cosf(angle);
+        float s = sinf(angle);
+
+        return {{{1.0F, 0.0F, 0.0F, 0.0F},
+                 {0.0F, c, s, 0.0F},
+                 {0.0F, -s, c, 0.0F},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    // Roll: rotate around Y axis.
+    static Matrix rotationY(float angle) {
+        float c = cosf(angle);
+        float s = sinf(angle);
+
+        return {{{c, 0.0F, -s, 0.0F},
+                 {0.0F, 1.0F, 0.0F, 0.0F},
+                 {s, 0.0F, c, 0.0F},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    // Yaw: rotate around Z axis.
+    static Matrix rotationZ(float angle) {
+        float c = cosf(angle);
+        float s = sinf(angle);
+
+        return {{{c, s, 0.0F, 0.0F},
+                 {-s, c, 0.0F, 0.0F},
+                 {0.0F, 0.0F, 1.0F, 0.0F},
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 };
