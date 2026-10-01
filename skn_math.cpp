@@ -36,18 +36,56 @@ template <typename T> struct Vector2 {
     };
 };
 
+typedef Vector2<float> Vector2f;
 typedef Vector2<int> Vector2i;
 typedef Vector2<uint> Vector2u;
-typedef Vector2<float> Vector2f;
 
 static Vector2f operator+(Vector2f a, Vector2i b) { return {a.x + float(b.x), a.y + float(b.y)}; }
 static Vector2f operator-(Vector2i a, Vector2f b) { return {float(a.x) - b.x, float(a.y) - b.y}; }
 
-struct Vector3f {
-    float x;
-    float y;
-    float z;
+template <typename T> struct Vector3 {
+    T x = 0;
+    T y = 0;
+    T z = 0;
+
+    Vector3() {}
+    Vector3(T x, T y, T z) : x(x), y(y), z(z) {}
+    template <typename U> Vector3(Vector3<U> v) : x(T(v.x)), y(T(v.y)), z(T(v.z)) {}
+
+    T &operator[](size_t i) {
+        assert(i < 3);
+        return (&x)[i];
+    }
+
+    const T &operator[](size_t i) const {
+        assert(i < 3);
+        return (&x)[i];
+    }
+
+    void operator+=(Vector3 other) { x += other.x, y += other.y, z += other.z; }
+
+    Vector3 operator+(Vector3 other) const {
+        return {T(x + other.x), T(y + other.y), T(z + other.z)};
+    }
+
+    // signed
+    Vector3 operator-() const {
+        static_assert(!__is_same(T, uint));
+        return {-x, -y, -z};
+    }
+
+    // float
+    Vector3<float> operator*(float other) const {
+        return {float(x * other), float(y * other), float(z * other)};
+    }
 };
+
+typedef Vector3<float> Vector3f;
+typedef Vector3<int> Vector3i;
+
+static Vector3f operator+(Vector3f a, Vector3i b) {
+    return {a.x + float(b.x), a.y + float(b.y), a.z + float(b.z)};
+}
 
 template <typename T> struct Rectangle : Vector2<T> {
     T w;
