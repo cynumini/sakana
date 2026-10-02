@@ -16,13 +16,20 @@
 
 #define SDL_CHECK(cond) SDL_CHECK2(cond, __FILE__, __LINE__) // NOLINT
 
-static const u8 MAX_TEXTURE_SAMPLERS = 16;
+constexpr u8 MAX_TEXTURE_SAMPLERS = 16;
 
-template <size_t N, size_t M>
-static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, const u8 (&code_spv)[N],
-                                      const u8 (&code_dxil)[M], SDL_GPUShaderStage stage,
-                                      SDL_GPUShaderFormat shader_format, uint num_samplers,
-                                      uint num_uniform_buffers) {
+struct ShaderCode {
+    Slice<const u8> spv;
+    Slice<const u8> dxil;
+
+    template <size_t N, size_t M>
+    constexpr ShaderCode(const u8 (&code_spv)[N], const u8 (&code_dxil)[M])
+        : spv(N, code_spv), dxil(M, code_dxil) {}
+};
+
+static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, ShaderCode code,
+                                      SDL_GPUShaderStage stage, SDL_GPUShaderFormat shader_format,
+                                      uint num_samplers, uint num_uniform_buffers) {
     SDL_GPUShaderCreateInfo createinfo = {
         .entrypoint = "main",
         .format = shader_format,
@@ -31,11 +38,13 @@ static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, const u8 (&code_spv
         .num_uniform_buffers = num_uniform_buffers,
     };
     if (shader_format == SDL_GPU_SHADERFORMAT_SPIRV) {
-        createinfo.code_size = N;
-        createinfo.code = code_spv;
+        createinfo.code_size = code.spv.len;
+        createinfo.code = code.spv.ptr;
+    } else if (shader_format == SDL_GPU_SHADERFORMAT_DXIL) {
+        createinfo.code_size = code.dxil.len;
+        createinfo.code = code.dxil.ptr;
     } else {
-        createinfo.code_size = M;
-        createinfo.code = code_dxil;
+        SDL_assert(false and "SPIRV and DXIL only");
     }
     return SDL_CreateGPUShader(device, &createinfo);
 };
@@ -60,48 +69,43 @@ static void uploadToGPUBuffer(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer 
 }
 
 struct Texture {
-    Vector2i size;
+    int w, h;
     SDL_GPUTexture *ptr;
 
-    static bool create(SDL_GPUDevice *device, Vector2i size, Texture *texture) {
+    static Texture create(SDL_GPUDevice *device, int w, int h) {
         const SDL_GPUTextureCreateInfo createinfo = {
             .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
             .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-            .width = uint(size.x),
-            .height = uint(size.y),
+            .width = uint(w),
+            .height = uint(h),
             .layer_count_or_depth = 1,
             .num_levels = 1,
         };
-        *texture = {.size = size, .ptr = SDL_CreateGPUTexture(device, &createinfo)};
-        return texture->ptr != 0;
+        auto *ptr = SDL_CreateGPUTexture(device, &createinfo);
+        SDL_assert(ptr);
+        return {w, h, ptr};
     }
 
-    static bool load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, const char *file,
-                     Texture *texture) {
-        texture->ptr =
-            IMG_LoadGPUTexture(device, copy_pass, file, &texture->size.x, &texture->size.y);
-        return texture->ptr != 0;
+    static Texture load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, const char *file) {
+        int w, h;
+        auto *ptr = IMG_LoadGPUTexture(device, copy_pass, file, &w, &h);
+        SDL_assert(ptr);
+        return {w, h, ptr};
     }
 
-    static bool load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, Slice<u8> data,
-                     Texture *texture) {
+    static Texture load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, Slice<u8> data) {
+        int w, h;
         auto *src = SDL_IOFromConstMem(data.ptr, data.len);
-        texture->ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true, &texture->size.x,
-                                             &texture->size.y);
-        return texture->ptr != 0;
+        auto *ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true, &w, &h);
+        SDL_assert(ptr);
+        return {w, h, ptr};
     }
 
-    void uploadToGPU(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer *transfer_buffer,
-                     URectangle region) {
+    void uploadToGPU(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer *transfer_buffer, uint x,
+                     uint y, uint w, uint h) const {
         const SDL_GPUTextureTransferInfo source = {.transfer_buffer = transfer_buffer};
         const SDL_GPUTextureRegion destination = {
-            .texture = ptr,
-            .x = region.x,
-            .y = region.y,
-            .w = region.w,
-            .h = region.h,
-            .d = 1,
-        };
+            .texture = ptr, .x = x, .y = y, .w = w, .h = h, .d = 1};
         SDL_UploadToGPUTexture(copy_pass, &source, &destination, false);
     }
 };

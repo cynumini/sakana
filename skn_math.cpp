@@ -1,150 +1,138 @@
 #pragma once
 
-#include <math.h>
+#include <cassert>
+#include <cmath>
 
-#include "skn.cpp"
+#include "skn_types.cpp"
 
-template <typename T> struct Vector2 {
-    T x;
-    T y;
+struct Vec2 {
+    float x = 0;
+    float y = 0;
 
-    // all
-    void operator+=(Vector2 other) { x += other.x, y += other.y; }
-
-    Vector2 operator+(T other) const { return {x + other, y + other}; }
-
-    Vector2 operator+(Vector2 other) const { return {T(x + other.x), T(y + other.y)}; }
-    Vector2 operator-(Vector2 other) const { return {T(x - other.x), T(y - other.y)}; }
-    Vector2 operator*(Vector2 other) const { return {T(x * other.x), T(y * other.y)}; }
-
-    T dot(Vector2 other) const { return (x * other.x) + (y * other.y); }
-
-    // signed
-    Vector2 operator-() const {
-        static_assert(!__is_same(T, uint));
-        return {-x, -y};
+    constexpr float &operator[](size_t i) {
+        assert(i < 2);
+        return (&x)[i];
     }
 
-    // float
-    Vector2<float> operator/(float other) const { return {float(x) / other, float(y) / other}; }
-    Vector2<float> operator*(float other) const { return {float(x) * other, float(y) * other}; }
-    float length() const { return sqrtf((float(x) * float(x)) + (float(y) * float(y))); };
-    Vector2<float> normalize() const {
+    constexpr const float &operator[](size_t i) const {
+        assert(i < 2);
+        return (&x)[i];
+    }
+
+    constexpr Vec2 operator*(Vec2 other) const { return {x * other.x, y * other.y}; }
+
+    constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
+
+    constexpr Vec2 operator-(Vec2 other) const { return {x - other.x, y - other.y}; }
+
+    constexpr Vec2 &operator+=(const Vec2 &other) {
+        x += other.x, y += other.y;
+        return *this;
+    }
+
+    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
+
+    constexpr Vec2 operator+(float other) const { return {x + other, y + other}; }
+
+    constexpr Vec2 operator/(float other) const { return {x / other, y / other}; }
+
+    constexpr Vec2 operator-() const { return {-x, -y}; }
+
+    constexpr float dot(const Vec2 other) const { return (x * other.x) + (y * other.y); }
+
+    constexpr float length() const { return std::sqrt(x * x + y * y); };
+
+    constexpr Vec2 normalize() const {
         auto l = length();
-        if (l > 0) return {float(x) / l, float(y) / l};
-        return {float(x), float(y)};
+        if (l > 0) return {x / l, y / l};
+        return {x, y};
     };
 };
 
-typedef Vector2<float> Vector2f;
-typedef Vector2<int> Vector2i;
-typedef Vector2<uint> Vector2u;
+struct Vec3 {
+    float x = 0;
+    float y = 0;
+    float z = 0;
 
-static Vector2f operator+(Vector2f a, Vector2i b) { return {a.x + float(b.x), a.y + float(b.y)}; }
-static Vector2f operator-(Vector2i a, Vector2f b) { return {float(a.x) - b.x, float(a.y) - b.y}; }
-
-template <typename T> struct Vector3 {
-    T x = 0;
-    T y = 0;
-    T z = 0;
-
-    Vector3() {}
-    Vector3(T x, T y, T z) : x(x), y(y), z(z) {}
-    template <typename U> Vector3(Vector3<U> v) : x(T(v.x)), y(T(v.y)), z(T(v.z)) {}
-
-    T &operator[](size_t i) {
+    constexpr float &operator[](size_t i) {
         assert(i < 3);
         return (&x)[i];
     }
 
-    const T &operator[](size_t i) const {
+    constexpr const float &operator[](size_t i) const {
         assert(i < 3);
         return (&x)[i];
     }
 
-    void operator+=(Vector3 other) { x += other.x, y += other.y, z += other.z; }
+    constexpr void operator+=(Vec3 other) { x += other.x, y += other.y, z += other.z; }
 
-    Vector3 operator+(Vector3 other) const {
-        return {T(x + other.x), T(y + other.y), T(z + other.z)};
-    }
+    constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
 
-    // signed
-    Vector3 operator-() const {
-        static_assert(!__is_same(T, uint));
-        return {-x, -y, -z};
-    }
+    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 
-    // float
-    Vector3<float> operator*(float other) const {
-        return {float(x * other), float(y * other), float(z * other)};
-    }
+    constexpr Vec3 operator-() const { return {-x, -y, -z}; }
 };
 
-typedef Vector3<float> Vector3f;
-typedef Vector3<int> Vector3i;
+struct Rect {
+    float x = 0;
+    float y = 0;
+    float w = 0;
+    float h = 0;
 
-static Vector3f operator+(Vector3f a, Vector3i b) {
-    return {a.x + float(b.x), a.y + float(b.y), a.z + float(b.z)};
-}
+    constexpr Rect() = default;
 
-template <typename T> struct Rectangle : Vector2<T> {
-    T w;
-    T h;
+    constexpr Rect(float x, float y, float w, float h) : x(x), y(y), w(w), h(h) {}
 
-    static Rectangle fromVec(Vector2<T> position, Vector2<T> size) {
-        return {position, size.x, size.y};
+    constexpr Rect(Vec2 pos, Vec2 size) : x(pos.x), y(pos.y), w(size.x), h(size.y) {}
+
+    constexpr Rect operator/(float value) const {
+        return {x / value, y / value, w / value, h / value};
     }
 
-    Vector2<T> position() const { return *(this); }
-    Vector2<T> size() const { return {w, h}; }
-
-    // float
-    Rectangle<float> operator/(float value) const {
-        return {position() / value, float(w) / value, float(h) / value};
+    constexpr Rect &operator/=(float value) {
+        x /= value;
+        y /= value;
+        w /= value;
+        h /= value;
+        return *this;
     }
 
-    void operator/=(float value) {
-        static_assert(__is_same(T, float));
-        this->x = this->x / value;
-        this->y = this->y / value;
-        w = w / value;
-        h = h / value;
-    }
+    constexpr Vec2 position() const { return {x, y}; }
+
+    constexpr Vec2 size() const { return {w, h}; }
 };
 
-typedef Rectangle<float> FRectangle;
-typedef Rectangle<uint> URectangle;
+static constexpr float deg2rad(float degrees) { return degrees * (M_PIf / 180.0F); }
 
-static constexpr float deg2rad(float degrees) { return degrees * (M_PI / 180.0F); }
+static constexpr float rad2deg(float radians) { return radians * (180.0F / M_PIf); }
 
-static constexpr float rad2deg(float radians) { return radians * (180.0F / M_PI); }
-
-struct Matrix {
+struct Mat4 {
     float m[4][4];
 
-    Matrix operator*(const Matrix &other) const {
-        Matrix r = {};
+    constexpr Mat4 operator*(const Mat4 &other) const {
+        Mat4 r = {};
         for (size_t y = 0; y < 4; y++)
             for (size_t x = 0; x < 4; x++)
                 for (size_t i = 0; i < 4; i++) r.m[y][x] += m[y][i] * other.m[i][x];
         return r;
     }
 
-    static Matrix scale(Vector3f v) {
+    constexpr static Mat4 scale(Vec3 v) {
         return {{{v.x, 0.0F, 0.0F, 0.0F},
                  {0.0F, v.y, 0.0F, 0.0F},
                  {0.0F, 0.0F, v.z, 0.0F},
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    static Matrix translation(Vector3f v) {
+    constexpr static Mat4 translation(Vec3 v) {
         return {{{1.0F, 0.0F, 0.0F, v.x},
                  {0.0F, 1.0F, 0.0F, v.y},
                  {0.0F, 0.0F, 1.0F, v.z},
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    static Matrix ortho(float left, float right, float bottom, float top, float near, float far) {
+    constexpr static Mat4 ortho(float left, float right, float bottom, float top, float near,
+                                float far) {
         float rl = right - left;
         float tb = top - bottom;
         float fn = far - near;
@@ -155,10 +143,10 @@ struct Matrix {
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    // Pitch: rotate around X axis.
-    static Matrix rotationX(float angle) {
-        float c = cosf(angle);
-        float s = sinf(angle);
+    // Pitch
+    constexpr static Mat4 rotationX(float angle) {
+        float c = std::cos(angle);
+        float s = std::sin(angle);
 
         return {{{1.0F, 0.0F, 0.0F, 0.0F},
                  {0.0F, c, s, 0.0F},
@@ -166,10 +154,10 @@ struct Matrix {
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    // Roll: rotate around Y axis.
-    static Matrix rotationY(float angle) {
-        float c = cosf(angle);
-        float s = sinf(angle);
+    // Roll
+    constexpr static Mat4 rotationY(float angle) {
+        float c = std::cos(angle);
+        float s = std::sin(angle);
 
         return {{{c, 0.0F, -s, 0.0F},
                  {0.0F, 1.0F, 0.0F, 0.0F},
@@ -177,10 +165,10 @@ struct Matrix {
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    // Yaw: rotate around Z axis.
-    static Matrix rotationZ(float angle) {
-        float c = cosf(angle);
-        float s = sinf(angle);
+    // Yaw
+    constexpr static Mat4 rotationZ(float angle) {
+        float c = std::cos(angle);
+        float s = std::sin(angle);
 
         return {{{c, s, 0.0F, 0.0F},
                  {-s, c, 0.0F, 0.0F},
@@ -194,90 +182,78 @@ struct Color {
     u8 g;
     u8 b;
     u8 a;
+
+    constexpr Color() = default;
+
+    constexpr Color(u8 r, u8 g, u8 b, u8 a) : r(r), g(g), b(b), a(a) {}
+
+    constexpr Color(u32 value)
+        : r(u8(value >> 24)), g(u8(value >> 16)), b(u8(value >> 8)), a(u8(value)) {}
 };
 
-static constexpr Color colorFromHex(u32 value) noexcept {
-    return {
-        .r = u8(value >> 24),
-        .g = u8(value >> 16),
-        .b = u8(value >> 8),
-        .a = u8(value),
-    };
-}
+constexpr Color WHITE = 0xFFFFFFFF;
+constexpr Color BLACK = 0x000000FF;
+constexpr Color GRAY = 0x808080FF;
+constexpr Color RED = 0xFF0000FF;
+constexpr Color GREEN = 0x00FF00FF;
+constexpr Color BLUE = 0x0000FFFF;
+constexpr Color YELLOW = 0xFFFF00FF;
+constexpr Color CYAN = 0x00FFFFFF;
+constexpr Color MAGENTA = 0xFF00FFFF;
+constexpr Color ORANGE = 0xFFA500FF;
+constexpr Color PURPLE = 0x800080FF;
+constexpr Color PINK = 0xFFC0CBFF;
+constexpr Color BROWN = 0xA52A2AFF;
+constexpr Color LIME = 0xBFFF00FF;
+constexpr Color NAVY = 0x000080FF;
+constexpr Color TEAL = 0x008080FF;
 
-const Color WHITE = colorFromHex(0xFFFFFFFF);
-const Color BLACK = colorFromHex(0x000000FF);
-const Color GRAY = colorFromHex(0x808080FF);
-const Color RED = colorFromHex(0xFF0000FF);
-const Color GREEN = colorFromHex(0x00FF00FF);
-const Color BLUE = colorFromHex(0x0000FFFF);
-const Color YELLOW = colorFromHex(0xFFFF00FF);
-const Color CYAN = colorFromHex(0x00FFFFFF);
-const Color MAGENTA = colorFromHex(0xFF00FFFF);
-const Color ORANGE = colorFromHex(0xFFA500FF);
-const Color PURPLE = colorFromHex(0x800080FF);
-const Color PINK = colorFromHex(0xFFC0CBFF);
-const Color BROWN = colorFromHex(0xA52A2AFF);
-const Color LIME = colorFromHex(0xBFFF00FF);
-const Color NAVY = colorFromHex(0x000080FF);
-const Color TEAL = colorFromHex(0x008080FF);
-
-static bool checkCollisionAABB(FRectangle a, FRectangle b) {
+static bool checkCollisionAABB(Rect a, Rect b) {
     return a.x < (b.x + b.w) and b.x < (a.x + a.w) and a.y < (b.y + b.h) and b.y < (a.y + a.h);
 };
 
 struct Points4 {
-    Vector2f v[4];
+    Vec2 v[4];
 };
 
-static Points4 calcRectPoints(FRectangle rect, float angle) {
-    float half_w = rect.w * 0.5F;
-    float half_h = rect.h * 0.5F;
-    Vector2f center = {rect.x + half_w, rect.y + half_h};
-    Points4 points = {{
-        {-half_w, -half_h},
-        {half_w, -half_h},
-        {half_w, half_h},
-        {-half_w, half_h},
-    }};
-    float c = cosf(angle);
-    float s = sinf(angle);
+static Points4 calcRectPoints(Rect rect, float angle) {
+    auto half = Vec2{rect.w, rect.h} * 0.5F;
+    Vec2 center = rect.position() + half;
+    Points4 points = {-half, {half.x, -half.y}, half, {-half.x, half.y}};
+    float c = std::cos(angle), s = std::sin(angle);
     for (size_t i = 0; i < 4; i++) {
         float x = points.v[i].x;
         float y = points.v[i].y;
-        points.v[i] = {(x * c) - (y * s), (x * s) + (y * c)};
-        points.v[i] += center;
+        points.v[i] = Vec2{(x * c) - (y * s), (x * s) + (y * c)} + center;
     }
     return points;
 }
 
-static float max(const float values[4]) {
-    float value = values[0];
-    for (size_t i = 1; i < 4; i++) value = values[i] > value ? values[i] : value;
-    return value;
+template <typename T, size_t N> static float max(const T (&values)[N]) {
+    static_assert(N > 0);
+    float best = values[0];
+    for (const auto &value : values) best = value > best ? value : best;
+    return best;
 }
 
-static float min(const float values[4]) {
-    float value = values[0];
-    for (size_t i = 1; i < 4; i++) value = values[i] < value ? values[i] : value;
-    return value;
+template <typename T, size_t N> static T min(const T (&values)[N]) {
+    static_assert(N > 0);
+    float best = values[0];
+    for (const auto &value : values) best = value < best ? value : best;
+    return best;
 }
 
-static bool checkCollisionSAT(FRectangle a, float a_angle, FRectangle b, float b_angle) {
+static bool checkCollisionSAT(Rect a, float a_angle, Rect b, float b_angle) {
     auto a_points = calcRectPoints(a, a_angle);
     auto b_points = calcRectPoints(b, b_angle);
-    const Vector2f axes[4] = {a_points.v[1] - a_points.v[0], a_points.v[2] - a_points.v[1],
-                              b_points.v[1] - b_points.v[0], b_points.v[2] - b_points.v[1]};
-
+    const Vec2 axes[4] = {a_points.v[1] - a_points.v[0], a_points.v[2] - a_points.v[1],
+                          b_points.v[1] - b_points.v[0], b_points.v[2] - b_points.v[1]};
     for (size_t i = 0; i < 4; i++) {
         float a_values[4] = {a_points.v[0].dot(axes[i]), a_points.v[1].dot(axes[i]),
                              a_points.v[2].dot(axes[i]), a_points.v[3].dot(axes[i])};
-
         float b_values[4] = {b_points.v[0].dot(axes[i]), b_points.v[1].dot(axes[i]),
                              b_points.v[2].dot(axes[i]), b_points.v[3].dot(axes[i])};
-
         if (max(a_values) < min(b_values) or max(b_values) < min(a_values)) return false;
     }
-
     return true;
 }
