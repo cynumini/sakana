@@ -221,8 +221,8 @@ constexpr Color NAVY = 0x000080FF;
 constexpr Color TEAL = 0x008080FF;
 
 static bool checkCollisionAABB(Rect a, Rect b) {
-    return a.x < (b.x + b.w) and b.x < (a.x + a.w) and a.y < (b.y + b.h) and b.y < (a.y + a.h);
-};
+    return std::abs(a.x - b.x) * 2.0F < a.w + b.w && std::abs(a.y - b.y) * 2.0F < a.h + b.h;
+}
 
 struct Points4 {
     Vec2 v[4];
@@ -230,7 +230,8 @@ struct Points4 {
 
 static Points4 calcRectPoints(Rect rect, float angle) {
     auto half = Vec2{rect.w, rect.h} * 0.5F;
-    Vec2 center = rect.position() + half;
+    // Vec2 center = rect.position() + half;
+    Vec2 center = {rect.x, rect.y};
     Points4 points = {-half, {half.x, -half.y}, half, {-half.x, half.y}};
     float c = std::cos(angle), s = std::sin(angle);
     for (size_t i = 0; i < 4; i++) {
