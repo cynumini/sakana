@@ -47,12 +47,24 @@ struct Vec2 {
         if (l > 0) return {x / l, y / l};
         return {x, y};
     };
+
+    constexpr Vec2 rotate(float rad) const {
+        float c = cos(rad);
+        float s = sin(rad);
+        return {x * c - y * s, x * s + y * c};
+    }
 };
 
 struct Vec3 {
     float x = 0;
     float y = 0;
     float z = 0;
+
+    constexpr Vec3() = default;
+
+    constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+
+    constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
 
     constexpr float &operator[](size_t i) {
         assert(i < 3);
