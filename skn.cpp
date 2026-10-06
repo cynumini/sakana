@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cmath>
 
 #include <sys/mman.h>
 
@@ -15,9 +16,6 @@ typedef unsigned int uint;
 
 #define KB(value) ((value) * 1024)
 #define MB(value) (KB(value) * 1024)
-
-template <typename T> T min(T a, T b) { return a < b ? a : b; }
-template <typename T> T max(T a, T b) { return a > b ? a : b; }
 
 // defer
 template <typename F> struct privDefer {
@@ -214,7 +212,7 @@ struct Arena {
         const size_t pos = checkAndGetPosition((u8 *)slice.ptr);
         if (positions.len == 0 or pos != positions.peek()) {
             Slice<T> out_slice = alloc<T>(new_len);
-            memcpy(out_slice.ptr, slice.ptr, min(slice.len * sizeof(T), new_size));
+            memcpy(out_slice.ptr, slice.ptr, std::min(slice.len * sizeof(T), new_size));
             return out_slice;
         }
         assert((pos % alignof(T)) == 0);
