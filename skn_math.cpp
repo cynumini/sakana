@@ -96,7 +96,7 @@ struct Vec3 {
 
     constexpr Vec3 operator+(Vec2 other) const { return {x + other.x, y + other.y, z}; }
 
-    constexpr Vec3 &operator+=(const Vec3 &other) {
+    constexpr Vec3 &operator+=(const Vec2 &other) {
         x += other.x, y += other.y;
         return *this;
     }
