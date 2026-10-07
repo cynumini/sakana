@@ -5,9 +5,19 @@
 
 #include "skn_types.cpp"
 
+struct Vec3;
+
 struct Vec2 {
     float x = 0;
     float y = 0;
+
+    constexpr Vec2() = default;
+
+    constexpr Vec2(float x, float y = 0) : x(x), y(y) {}
+
+    constexpr Vec2(int x, int y = 0) : x(x), y(y) {}
+
+    constexpr Vec2(Vec3 v);
 
     constexpr float &operator[](size_t i) {
         assert(i < 2);
@@ -62,9 +72,9 @@ struct Vec3 {
 
     constexpr Vec3() = default;
 
-    constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+    constexpr Vec3(float x, float y = 0, float z = 0) : x(x), y(y), z(z) {}
 
-    constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
+    constexpr Vec3(Vec2 v, float z = 0) : x(v.x), y(v.y), z(z) {}
 
     constexpr float &operator[](size_t i) {
         assert(i < 3);
@@ -83,7 +93,18 @@ struct Vec3 {
     constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 
     constexpr Vec3 operator-() const { return {-x, -y, -z}; }
+
+    constexpr Vec3 operator+(Vec2 other) const { return {x + other.x, y + other.y, z}; }
+
+    constexpr Vec3 &operator+=(const Vec3 &other) {
+        x += other.x, y += other.y;
+        return *this;
+    }
+
+    constexpr Vec2 xy() { return {x, y}; }
 };
+
+constexpr Vec2::Vec2(Vec3 v) : x(v.x), y(v.y) {}
 
 struct Rect {
     float x = 0;
@@ -222,6 +243,10 @@ constexpr Color TEAL = 0x008080FF;
 
 static bool checkCollisionAABB(Rect a, Rect b) {
     return std::abs(a.x - b.x) * 2.0F < a.w + b.w && std::abs(a.y - b.y) * 2.0F < a.h + b.h;
+}
+
+static bool checkCollisionPointRect(Vec2 p, Rect r) {
+    return std::abs(p.x - r.x) * 2.0F < r.w && std::abs(p.y - r.y) * 2.0F < r.h;
 }
 
 struct Points4 {
