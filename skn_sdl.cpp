@@ -62,9 +62,9 @@ static SDL_GPUTransferBuffer *createGPUTransferBuffer(SDL_GPUDevice *device, uin
 }
 
 static void uploadToGPUBuffer(SDL_GPUCopyPass *copy_pass, SDL_GPUTransferBuffer *transfer_buffer,
-                              uint offset, SDL_GPUBuffer *buffer, uint size) {
-    const SDL_GPUTransferBufferLocation source = {transfer_buffer, offset};
-    const SDL_GPUBufferRegion destination = {buffer, 0, size};
+                              uint in_offset, uint out_offset, SDL_GPUBuffer *buffer, uint size) {
+    const SDL_GPUTransferBufferLocation source = {transfer_buffer, in_offset};
+    const SDL_GPUBufferRegion destination = {buffer, out_offset, size};
     SDL_UploadToGPUBuffer(copy_pass, &source, &destination, false);
 }
 

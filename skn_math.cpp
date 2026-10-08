@@ -92,6 +92,18 @@ struct Vec3 {
 
     constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 
+    constexpr Vec3 operator+(float other) const { return {x + other, y + other, z + other}; }
+
+    constexpr Vec3 operator+(int other) const {
+        return {x + float(other), y + float(other), z + float(other)};
+    }
+
+    constexpr Vec3 operator-(float other) const { return {x - other, y - other, z - other}; }
+
+    constexpr Vec3 operator-(int other) const {
+        return {x - float(other), y - float(other), z - float(other)};
+    }
+
     constexpr Vec3 operator-() const { return {-x, -y, -z}; }
 
     constexpr Vec3 operator+(Vec2 other) const { return {x + other.x, y + other.y, z}; }
@@ -105,6 +117,28 @@ struct Vec3 {
 };
 
 constexpr Vec2::Vec2(Vec3 v) : x(v.x), y(v.y) {}
+
+struct Vec3i {
+    int x = 0;
+    int y = 0;
+    int z = 0;
+
+    constexpr Vec3i() = default;
+
+    constexpr Vec3i(int x, int y = 0, int z = 0) : x(x), y(y), z(z) {}
+
+    constexpr Vec3i(Vec3 v) : x(int(v.x)), y(int(v.y)), z(int(v.z)) {}
+
+    constexpr int &operator[](size_t i) {
+        assert(i < 3);
+        return (&x)[i];
+    }
+
+    constexpr const int &operator[](size_t i) const {
+        assert(i < 3);
+        return (&x)[i];
+    }
+};
 
 struct Rect {
     float x = 0;
@@ -184,6 +218,15 @@ struct Mat4 {
         return {{{1.0F, 0.0F, 0.0F, 0.0F},
                  {0.0F, c, s, 0.0F},
                  {0.0F, -s, c, 0.0F},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    constexpr static Mat4 iso45() {
+        constexpr float s = 0.7071067811865475F;
+
+        return {{{1.0F, 0.0F, 0.0F, 0.0F},
+                 {0.0F, 1.0F, 1.0F, 0.0F},
+                 {0.0F, -s, s, 0.0F},
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
