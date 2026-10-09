@@ -138,6 +138,16 @@ struct Vec3i {
         assert(i < 3);
         return (&x)[i];
     }
+
+    constexpr Vec3i operator+(Vec3i other) const {
+        return {x + other.x, y + other.y, z + other.z};
+    }
+
+    constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
+
+    constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
+
+    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 };
 
 struct Rect {
