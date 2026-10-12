@@ -90,6 +90,8 @@ struct Vec3 {
 
     constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
 
+    constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
+
     constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 
     constexpr Vec3 operator+(float other) const { return {x + other, y + other, z + other}; }
