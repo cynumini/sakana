@@ -5,7 +5,10 @@
 
 #include "skn_types.cpp"
 
+struct Vec2;
+struct Vec2i;
 struct Vec3;
+struct Vec3i;
 
 struct Vec2 {
     float x = 0;
@@ -65,6 +68,43 @@ struct Vec2 {
     }
 };
 
+struct Vec2i {
+    int x = 0;
+    int y = 0;
+
+    constexpr Vec2i() = default;
+
+    constexpr Vec2i(int x, int y = 0) : x(x), y(y) {}
+
+    constexpr Vec2i(Vec2 v) : x(int(v.x)), y(int(v.y)) {}
+
+    constexpr int &operator[](size_t i) {
+        assert(i < 2);
+        return (&x)[i];
+    }
+
+    constexpr const int &operator[](size_t i) const {
+        assert(i < 2);
+        return (&x)[i];
+    }
+
+    constexpr Vec2i operator+(Vec2i other) const { return {x + other.x, y + other.y}; }
+
+    constexpr Vec2 operator-(Vec2 other) const { return {x - other.x, y - other.y}; }
+
+    constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
+
+    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
+
+    constexpr Vec2i operator*(int other) const { return {x * other, y * other}; }
+
+    bool operator==(Vec2i other) { return x == other.x and y == other.y; }
+
+    bool operator!=(Vec2i other) { return x != other.x or y != other.y; }
+
+    constexpr Vec3 operator+(Vec3 other) const;
+};
+
 struct Vec3 {
     float x = 0;
     float y = 0;
@@ -72,9 +112,11 @@ struct Vec3 {
 
     constexpr Vec3() = default;
 
-    constexpr Vec3(float x, float y = 0, float z = 0) : x(x), y(y), z(z) {}
+    constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
 
-    constexpr Vec3(Vec2 v, float z = 0) : x(v.x), y(v.y), z(z) {}
+    constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
+
+    constexpr Vec3(Vec3i v);
 
     constexpr float &operator[](size_t i) {
         assert(i < 3);
@@ -119,6 +161,7 @@ struct Vec3 {
 };
 
 constexpr Vec2::Vec2(Vec3 v) : x(v.x), y(v.y) {}
+constexpr Vec3 Vec2i::operator+(Vec3 other) const { return {x + other.x, y + other.y, other.z}; }
 
 struct Vec3i {
     int x = 0;
@@ -127,7 +170,7 @@ struct Vec3i {
 
     constexpr Vec3i() = default;
 
-    constexpr Vec3i(int x, int y = 0, int z = 0) : x(x), y(y), z(z) {}
+    constexpr Vec3i(int x, int y, int z) : x(x), y(y), z(z) {}
 
     constexpr Vec3i(Vec3 v) : x(int(v.x)), y(int(v.y)), z(int(v.z)) {}
 
@@ -151,6 +194,8 @@ struct Vec3i {
 
     constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 };
+
+constexpr Vec3::Vec3(Vec3i v) : x(float(v.x)), y(float(v.y)), z(float(v.z)) {}
 
 struct Rect {
     float x = 0;

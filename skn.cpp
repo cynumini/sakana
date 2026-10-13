@@ -1,12 +1,12 @@
 #pragma once
 
 #include <assert.h>
+#include <cmath>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <cmath>
 
 #include <sys/mman.h>
 
@@ -102,13 +102,31 @@ template <typename T, size_t N> struct Array {
 template <typename T> struct Fixed : public Slice<T> {
     size_t capacity;
 
-    static Fixed init(Slice<T> slice) { return {{.ptr = slice.ptr}, slice.len}; };
+    static Fixed create(Slice<T> slice) { return {{.ptr = slice.ptr, .len = 0}, slice.len}; }
+
+    void init(Slice<T> slice) {
+        this->ptr = slice.ptr;
+        this->len = 0;
+        capacity = slice.len;
+    }
 
     T *append(T value) {
         assert(this->len < capacity);
         const size_t index = this->len;
         this->ptr[this->len++] = value;
         return &this->ptr[index];
+    }
+
+    void swapRemove(size_t index) {
+        assert(index < this->len);
+        this->ptr[index] = this->ptr[--this->len];
+    }
+
+    T swapPop(size_t index) {
+        assert(index < this->len);
+        T removed = this->ptr[index];
+        this->ptr[index] = this->ptr[--this->len];
+        return removed;
     }
 };
 
