@@ -130,6 +130,13 @@ template <typename T> struct Fixed : public Slice<T> {
     }
 };
 
+// Static
+template <typename T, size_t N> struct Static : Fixed<T> {
+    T storage[N];
+
+    constexpr void init() { Fixed<T>::init({N, storage}); }
+};
+
 // FixedStack
 template <typename T, size_t N> struct FixedStack : Array<T, N> {
     static_assert(N > 0);
