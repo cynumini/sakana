@@ -15,11 +15,8 @@ struct Vec2 {
     float y = 0;
 
     constexpr Vec2() = default;
-
-    constexpr Vec2(float x, float y = 0) : x(x), y(y) {}
-
-    constexpr Vec2(int x, int y = 0) : x(x), y(y) {}
-
+    constexpr Vec2(float x, float y) : x(x), y(y) {}
+    constexpr Vec2(int x, int y) : x(x), y(y) {}
     constexpr Vec2(Vec3 v);
 
     constexpr float &operator[](size_t i) {
@@ -32,24 +29,20 @@ struct Vec2 {
         return (&x)[i];
     }
 
+    constexpr Vec2 operator-() const { return {-x, -y}; }
+
+    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
+    constexpr Vec2 operator+(float other) const { return {x + other, y + other}; }
+    constexpr Vec2 operator/(float other) const { return {x / other, y / other}; }
+
     constexpr Vec2 operator*(Vec2 other) const { return {x * other.x, y * other.y}; }
-
     constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
-
     constexpr Vec2 operator-(Vec2 other) const { return {x - other.x, y - other.y}; }
 
     constexpr Vec2 &operator+=(const Vec2 &other) {
         x += other.x, y += other.y;
         return *this;
     }
-
-    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
-
-    constexpr Vec2 operator+(float other) const { return {x + other, y + other}; }
-
-    constexpr Vec2 operator/(float other) const { return {x / other, y / other}; }
-
-    constexpr Vec2 operator-() const { return {-x, -y}; }
 
     constexpr float dot(const Vec2 other) const { return (x * other.x) + (y * other.y); }
 
@@ -73,9 +66,7 @@ struct Vec2i {
     int y = 0;
 
     constexpr Vec2i() = default;
-
-    constexpr Vec2i(int x, int y = 0) : x(x), y(y) {}
-
+    constexpr Vec2i(int x, int y) : x(x), y(y) {}
     constexpr Vec2i(Vec2 v) : x(int(v.x)), y(int(v.y)) {}
 
     constexpr int &operator[](size_t i) {
@@ -88,19 +79,18 @@ struct Vec2i {
         return (&x)[i];
     }
 
-    constexpr Vec2i operator+(Vec2i other) const { return {x + other.x, y + other.y}; }
-
-    constexpr Vec2 operator-(Vec2 other) const { return {x - other.x, y - other.y}; }
-
-    constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
-
-    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
+    constexpr bool operator==(Vec2i other) { return x == other.x and y == other.y; }
+    constexpr bool operator!=(Vec2i other) { return x != other.x or y != other.y; }
 
     constexpr Vec2i operator*(int other) const { return {x * other, y * other}; }
 
-    bool operator==(Vec2i other) { return x == other.x and y == other.y; }
+    constexpr Vec2i operator*(Vec2i other) const { return {x * other.x, y * other.y}; }
+    constexpr Vec2i operator+(Vec2i other) const { return {x + other.x, y + other.y}; }
 
-    bool operator!=(Vec2i other) { return x != other.x or y != other.y; }
+    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
+
+    constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
+    constexpr Vec2 operator-(Vec2 other) const { return {x - other.x, y - other.y}; }
 
     constexpr Vec3 operator+(Vec3 other) const;
 };
@@ -111,11 +101,8 @@ struct Vec3 {
     float z = 0;
 
     constexpr Vec3() = default;
-
     constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
-
     constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
-
     constexpr Vec3(Vec3i v);
 
     constexpr float &operator[](size_t i) {
@@ -128,36 +115,28 @@ struct Vec3 {
         return (&x)[i];
     }
 
-    constexpr void operator+=(Vec3 other) { x += other.x, y += other.y, z += other.z; }
-
-    constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
-
-    constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
-
-    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
-
-    constexpr Vec3 operator+(float other) const { return {x + other, y + other, z + other}; }
-
-    constexpr Vec3 operator+(int other) const {
-        return {x + float(other), y + float(other), z + float(other)};
-    }
-
-    constexpr Vec3 operator-(float other) const { return {x - other, y - other, z - other}; }
-
-    constexpr Vec3 operator-(int other) const {
-        return {x - float(other), y - float(other), z - float(other)};
-    }
-
     constexpr Vec3 operator-() const { return {-x, -y, -z}; }
 
+    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
+    constexpr Vec3 operator+(float other) const { return {x + other, y + other, z + other}; }
+    constexpr Vec3 operator+(int other) const { return operator+(float(other)); }
+    constexpr Vec3 operator-(float other) const { return {x - other, y - other, z - other}; }
+    constexpr Vec3 operator-(int other) const { return operator-(float(other)); }
+
+    constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
+    constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
+
     constexpr Vec3 operator+(Vec2 other) const { return {x + other.x, y + other.y, z}; }
+
+    constexpr Vec3 &operator+=(const Vec3 &other) {
+        x += other.x, y += other.y, z += other.z;
+        return *this;
+    }
 
     constexpr Vec3 &operator+=(const Vec2 &other) {
         x += other.x, y += other.y;
         return *this;
     }
-
-    constexpr Vec2 xy() { return {x, y}; }
 };
 
 constexpr Vec2::Vec2(Vec3 v) : x(v.x), y(v.y) {}
@@ -169,9 +148,8 @@ struct Vec3i {
     int z = 0;
 
     constexpr Vec3i() = default;
-
     constexpr Vec3i(int x, int y, int z) : x(x), y(y), z(z) {}
-
+    constexpr Vec3i(Vec2i v, int z) : x(v.x), y(v.y), z(z) {}
     constexpr Vec3i(Vec3 v) : x(int(v.x)), y(int(v.y)), z(int(v.z)) {}
 
     constexpr int &operator[](size_t i) {
@@ -188,11 +166,10 @@ struct Vec3i {
         return {x + other.x, y + other.y, z + other.z};
     }
 
-    constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
+    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 
     constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
-
-    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
+    constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
 };
 
 constexpr Vec3::Vec3(Vec3i v) : x(float(v.x)), y(float(v.y)), z(float(v.z)) {}
