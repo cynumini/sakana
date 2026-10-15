@@ -36,6 +36,12 @@ template <typename T, bool zero = false> struct Slice {
     size_t len;
     T *ptr;
 
+    Slice() : len(0), ptr(0) {}
+
+    Slice(size_t len, T *ptr) : len(len), ptr(ptr) {}
+
+    Slice<const char>(const char *text) : len(strlen(text)), ptr(text) {}
+
     T &operator[](size_t index) {
         assert(index < len);
         return ptr[index];
@@ -71,11 +77,11 @@ template <typename T, bool zero = false> struct Slice {
         assert(offset <= len);
         qsort(ptr + offset, len - offset, sizeof(T), sortFn);
     }
+
+    static Slice<const char> fromStrZ(const char *str) { return {strlen(str), str}; }
 };
 
 template <typename T> using SliceZ = Slice<T, true>;
-
-static Slice<const char> sliceFromStrZ(const char *str) { return {strlen(str), str}; }
 
 static Slice<const char> getStem(const char *str_z) {
     ptrdiff_t len = strlen(str_z);
@@ -130,7 +136,7 @@ template <typename T> T swapPop(T *data, size_t *len, size_t index) {
 template <typename T> struct Fixed : public Slice<T> {
     size_t capacity;
 
-    static Fixed create(Slice<T> slice) { return {{.ptr = slice.ptr, .len = 0}, slice.len}; }
+    static Fixed create(Slice<T> slice) { return {{0, slice.ptr}, slice.len}; }
 
     void init(Slice<T> slice) {
         this->ptr = slice.ptr;
@@ -147,9 +153,7 @@ template <typename T> struct Fixed : public Slice<T> {
 template <typename T, size_t N> struct Static : public Array<T, N> {
     size_t capacity = N;
 
-    Static() {
-        this->len = 0;
-    }
+    Static() { this->len = 0; }
 
     T *append(T value) { return ::append(this->data, &this->len, capacity, value); }
     void swapRemove(size_t index) { ::swapRemove(this->data, &this->len, index); }
@@ -369,7 +373,7 @@ template <typename T> struct Dynamic : public Slice<T> {
 
     static Dynamic init(Arena *a, size_t initial_capacity) {
         auto items = a->alloc<T>(initial_capacity);
-        return {{.ptr = items.ptr}, items.len};
+        return {{0, items.ptr}, items.len};
     }
 
     void deinit(Arena *a) { a->free({capacity, this->ptr}); }

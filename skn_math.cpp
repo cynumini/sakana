@@ -67,6 +67,7 @@ struct Vec2i {
 
     constexpr Vec2i() = default;
     constexpr Vec2i(int x, int y) : x(x), y(y) {}
+    constexpr Vec2i(float x, float y) : x(int(x)), y(int(y)) {}
     constexpr Vec2i(Vec2 v) : x(int(v.x)), y(int(v.y)) {}
 
     constexpr int &operator[](size_t i) {
