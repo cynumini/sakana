@@ -137,6 +137,12 @@ struct Vec3 {
         x += other.x, y += other.y;
         return *this;
     }
+
+    constexpr Vec3 rotateZ(float rad) const {
+        const float c = cos(rad);
+        const float s = sin(rad);
+        return {x * c - y * s, x * s + y * c, z};
+    }
 };
 
 constexpr Vec2::Vec2(Vec3 v) : x(v.x), y(v.y) {}

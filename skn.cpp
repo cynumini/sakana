@@ -89,14 +89,42 @@ static Slice<const char> getStem(const char *str_z) {
 // Array
 template <typename T, size_t N> struct Array {
     T data[N];
-    static constexpr size_t len = N;
-    T &operator[](size_t index) { return data[index]; }
-    const T &operator[](size_t index) const { return data[index]; }
+    size_t len = N;
+
+    T &operator[](size_t index) {
+        assert(index < len);
+        return data[index];
+    }
+
+    const T &operator[](size_t index) const {
+        assert(index < len);
+        return data[index];
+    }
+
     T *begin() { return data; }
     T *end() { return data + len; }
 };
 
 #define ARRAY_LEN(array) (sizeof(array) / sizeof((array)[0]))
+
+template <typename T> T *append(T *data, size_t *len, size_t capacity, T value) {
+    assert(*len < capacity);
+    const size_t index = *len;
+    data[(*len)++] = value;
+    return &data[index];
+}
+
+template <typename T> void swapRemove(T *data, size_t *len, size_t index) {
+    assert(index < *len);
+    data[index] = data[--(*len)];
+}
+
+template <typename T> T swapPop(T *data, size_t *len, size_t index) {
+    assert(index < *len);
+    T removed = data[index];
+    data[index] = data[--(*len)];
+    return removed;
+}
 
 // Fixed
 template <typename T> struct Fixed : public Slice<T> {
@@ -110,31 +138,22 @@ template <typename T> struct Fixed : public Slice<T> {
         capacity = slice.len;
     }
 
-    T *append(T value) {
-        assert(this->len < capacity);
-        const size_t index = this->len;
-        this->ptr[this->len++] = value;
-        return &this->ptr[index];
-    }
-
-    void swapRemove(size_t index) {
-        assert(index < this->len);
-        this->ptr[index] = this->ptr[--this->len];
-    }
-
-    T swapPop(size_t index) {
-        assert(index < this->len);
-        T removed = this->ptr[index];
-        this->ptr[index] = this->ptr[--this->len];
-        return removed;
-    }
+    T *append(T value) { return ::append(this->ptr, &this->len, capacity, value); }
+    void swapRemove(size_t index) { ::swapRemove(this->ptr, &this->len, index); }
+    T swapPop(size_t index) { return ::swapPop(this->ptr, &this->len, index); }
 };
 
 // Static
-template <typename T, size_t N> struct Static : Fixed<T> {
-    T storage[N];
+template <typename T, size_t N> struct Static : public Array<T, N> {
+    size_t capacity = N;
 
-    constexpr void init() { Fixed<T>::init({N, storage}); }
+    Static() {
+        this->len = 0;
+    }
+
+    T *append(T value) { return ::append(this->data, &this->len, capacity, value); }
+    void swapRemove(size_t index) { ::swapRemove(this->data, &this->len, index); }
+    T swapPop(size_t index) { return ::swapPop(this->data, &this->len, index); }
 };
 
 // FixedStack
