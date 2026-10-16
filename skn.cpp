@@ -31,6 +31,8 @@ template <typename F> privDefer<F> defer_func(F f) { return privDefer<F>(f); }
 #define DEFER_3(x) DEFER_2(x, __COUNTER__)
 #define defer(code) auto DEFER_3(_defer_) = defer_func([&]() { code; })
 
+#define TODO(text) __builtin_debugtrap()
+
 // Slice
 template <typename T, bool zero = false> struct Slice {
     size_t len;
@@ -41,6 +43,8 @@ template <typename T, bool zero = false> struct Slice {
     Slice(size_t len, T *ptr) : len(len), ptr(ptr) {}
 
     Slice<const char>(const char *text) : len(strlen(text)), ptr(text) {}
+
+    Slice<const char>(const Slice<char> &slice) : len(slice.len), ptr(slice.ptr) {}
 
     T &operator[](size_t index) {
         assert(index < len);
@@ -477,4 +481,6 @@ template <typename T> struct HashMap {
             data = new_data;
         }
     }
+
+    bool contains(const char *key) { return getItem(key) != 0; }
 };
