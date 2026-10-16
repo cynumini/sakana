@@ -9,6 +9,7 @@ struct Vec2;
 struct Vec2i;
 struct Vec3;
 struct Vec3i;
+struct Vec4;
 
 struct Vec2 {
     float x = 0;
@@ -17,6 +18,7 @@ struct Vec2 {
     constexpr Vec2() = default;
     constexpr Vec2(float x, float y) : x(x), y(y) {}
     constexpr Vec2(int x, int y) : x(x), y(y) {}
+    constexpr Vec2(Vec2i v);
     constexpr Vec2(Vec3 v);
 
     constexpr float &operator[](size_t i) {
@@ -67,6 +69,7 @@ struct Vec2i {
 
     constexpr Vec2i() = default;
     constexpr Vec2i(int x, int y) : x(x), y(y) {}
+    constexpr Vec2i(uint x, uint y) : x(x), y(y) {}
     constexpr Vec2i(float x, float y) : x(int(x)), y(int(y)) {}
     constexpr Vec2i(Vec2 v) : x(int(v.x)), y(int(v.y)) {}
 
@@ -96,6 +99,8 @@ struct Vec2i {
     constexpr Vec3 operator+(Vec3 other) const;
 };
 
+constexpr Vec2::Vec2(Vec2i v) : x(v.x), y(v.y) {}
+
 struct Vec3 {
     float x = 0;
     float y = 0;
@@ -105,6 +110,7 @@ struct Vec3 {
     constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
     constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
     constexpr Vec3(Vec3i v);
+    constexpr Vec3(Vec4 v);
 
     constexpr float &operator[](size_t i) {
         assert(i < 3);
@@ -134,6 +140,11 @@ struct Vec3 {
         return *this;
     }
 
+    constexpr Vec3 &operator-=(const Vec3 &other) {
+        x -= other.x, y -= other.y, z -= other.z;
+        return *this;
+    }
+
     constexpr Vec3 &operator+=(const Vec2 &other) {
         x += other.x, y += other.y;
         return *this;
@@ -144,6 +155,17 @@ struct Vec3 {
         const float s = sin(rad);
         return {x * c - y * s, x * s + y * c, z};
     }
+
+    constexpr float length() const { return std::sqrt(x * x + y * y + z * z); }
+
+    constexpr Vec3 normalize() const {
+        auto l = length();
+        if (l > 0) return {x / l, y / l, z / l};
+        return {x, y, z};
+    }
+
+    constexpr Vec3 floor() { return {std::floor(x), std::floor(y), std::floor(z)}; }
+    constexpr Vec3 round() { return {std::round(x), std::round(y), std::round(z)}; }
 };
 
 constexpr Vec2::Vec2(Vec3 v) : x(v.x), y(v.y) {}
@@ -180,6 +202,19 @@ struct Vec3i {
 };
 
 constexpr Vec3::Vec3(Vec3i v) : x(float(v.x)), y(float(v.y)), z(float(v.z)) {}
+
+struct Vec4 {
+    float x = 0;
+    float y = 0;
+    float z = 0;
+    float w = 0;
+
+    constexpr Vec4() = default;
+    constexpr Vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {};
+    constexpr Vec4(Vec3 v, float w) : x(v.x), y(v.y), z(v.z), w(w) {};
+};
+
+constexpr Vec3::Vec3(Vec4 v) : x(v.x), y(v.y), z(v.z) {};
 
 struct Rect {
     float x = 0;
@@ -225,6 +260,13 @@ struct Mat4 {
         return r;
     }
 
+    constexpr Vec4 operator*(const Vec4 &v) const {
+        return {m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z + m[0][3] * v.w,
+                m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z + m[1][3] * v.w,
+                m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z + m[2][3] * v.w,
+                m[3][0] * v.x + m[3][1] * v.y + m[3][2] * v.z + m[3][3] * v.w};
+    }
+
     constexpr static Mat4 scale(Vec3 v) {
         return {{{v.x, 0.0F, 0.0F, 0.0F},
                  {0.0F, v.y, 0.0F, 0.0F},
@@ -251,6 +293,12 @@ struct Mat4 {
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
+    constexpr static Vec4 unprojectOrtho(Vec3 ndc, float left, float right, float bottom,
+                                         float top, float near, float far) {
+        return {left + (ndc.x + 1.0F) * 0.5F * (right - left),
+                bottom + (ndc.y + 1.0F) * 0.5F * (top - bottom), near + ndc.z * (far - near), 1};
+    }
+
     // Pitch
     constexpr static Mat4 rotationX(float angle) {
         float c = std::cos(angle);
@@ -268,6 +316,24 @@ struct Mat4 {
         return {{{1.0F, 0.0F, 0.0F, 0.0F},
                  {0.0F, 1.0F, 1.0F, 0.0F},
                  {0.0F, -s, s, 0.0F},
+                 {0.0F, 0.0F, 0.0F, 1.0F}}};
+    }
+
+    // constexpr static Mat4 inverseIso45() {
+    //     constexpr float s = 0.7071067811865475F;
+
+    //     return {{{1.0F, 0.0F, 0.0F, 0.0F},
+    //              {0.0F, 0.5F, -s, 0.0F},
+    //              {0.0F, 0.5F, s, 0.0F},
+    //              {0.0F, 0.0F, 0.0F, 1.0F}}};
+    // }
+
+    constexpr static Mat4 inverseIso45() {
+        constexpr float s = 0.7071067811865475F;
+
+        return {{{1.0F, 0.0F, 0.0F, 0.0F},
+                 {0.0F, 0.5F, -s, 0.0F},
+                 {0.0F, 0.5F, s, 0.0F},
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
