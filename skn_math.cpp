@@ -196,6 +196,10 @@ struct Vec3i {
         return {x + other.x, y + other.y, z + other.z};
     }
 
+    constexpr bool operator==(Vec3i other) const {
+        return x == other.x and y == other.y and z == other.z;
+    }
+
     constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
 
     constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
