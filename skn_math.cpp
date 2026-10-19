@@ -102,11 +102,11 @@ struct Vec2i {
 constexpr Vec2::Vec2(Vec2i v) : x(v.x), y(v.y) {}
 
 struct Vec3 {
-    float x = 0;
-    float y = 0;
-    float z = 0;
+    float x;
+    float y;
+    float z;
 
-    constexpr Vec3() = default;
+    constexpr Vec3() : x(0), y(0), z(0) {}
     constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
     constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
     constexpr Vec3(Vec3i v);
@@ -130,6 +130,7 @@ struct Vec3 {
     constexpr Vec3 operator-(float other) const { return {x - other, y - other, z - other}; }
     constexpr Vec3 operator-(int other) const { return operator-(float(other)); }
 
+    constexpr Vec3 operator/(Vec3 other) const { return {x / other.x, y / other.y, z / other.z}; }
     constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
     constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
 
