@@ -5,6 +5,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include <span>
 
 #define SDL_CHECK2(cond, file, line)                                                             \
     do {                                                                                         \
@@ -19,12 +20,8 @@
 constexpr u8 MAX_TEXTURE_SAMPLERS = 16;
 
 struct ShaderCode {
-    Slice<const u8> spv;
-    Slice<const u8> dxil;
-
-    template <size_t N, size_t M>
-    constexpr ShaderCode(const u8 (&code_spv)[N], const u8 (&code_dxil)[M])
-        : spv(N, code_spv), dxil(M, code_dxil) {}
+    const std::span<const uint8_t> spv;
+    const std::span<const uint8_t> dxil;
 };
 
 static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, ShaderCode code,
@@ -38,11 +35,11 @@ static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, ShaderCode code,
         .num_uniform_buffers = num_uniform_buffers,
     };
     if (shader_format == SDL_GPU_SHADERFORMAT_SPIRV) {
-        createinfo.code_size = code.spv.len;
-        createinfo.code = code.spv.ptr;
+        createinfo.code_size = code.spv.size();
+        createinfo.code = code.spv.data();
     } else if (shader_format == SDL_GPU_SHADERFORMAT_DXIL) {
-        createinfo.code_size = code.dxil.len;
-        createinfo.code = code.dxil.ptr;
+        createinfo.code_size = code.dxil.size();
+        createinfo.code = code.dxil.data();
     } else {
         SDL_assert(false and "SPIRV and DXIL only");
     }
