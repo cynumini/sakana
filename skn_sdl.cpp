@@ -27,13 +27,7 @@ struct ShaderCode {
 static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, ShaderCode code,
                                       SDL_GPUShaderStage stage, SDL_GPUShaderFormat shader_format,
                                       uint num_samplers, uint num_uniform_buffers) {
-    SDL_GPUShaderCreateInfo createinfo = {
-        .entrypoint = "main",
-        .format = shader_format,
-        .stage = stage,
-        .num_samplers = num_samplers,
-        .num_uniform_buffers = num_uniform_buffers,
-    };
+    SDL_GPUShaderCreateInfo createinfo = {};
     if (shader_format == SDL_GPU_SHADERFORMAT_SPIRV) {
         createinfo.code_size = code.spv.size();
         createinfo.code = code.spv.data();
@@ -43,6 +37,11 @@ static SDL_GPUShader *createGPUShader(SDL_GPUDevice *device, ShaderCode code,
     } else {
         SDL_assert(false and "SPIRV and DXIL only");
     }
+    createinfo.entrypoint = "main";
+    createinfo.format = shader_format;
+    createinfo.stage = stage;
+    createinfo.num_samplers = num_samplers;
+    createinfo.num_uniform_buffers = num_uniform_buffers;
     return SDL_CreateGPUShader(device, &createinfo);
 };
 

@@ -153,17 +153,6 @@ template <typename T> struct Fixed : public Slice<T> {
     T swapPop(size_t index) { return ::swapPop(this->ptr, &this->len, index); }
 };
 
-// Static
-template <typename T, size_t N> struct Static : public Array<T, N> {
-    size_t capacity = N;
-
-    Static() { this->len = 0; }
-
-    T *append(T value) { return ::append(this->data, &this->len, capacity, value); }
-    void swapRemove(size_t index) { ::swapRemove(this->data, &this->len, index); }
-    T swapPop(size_t index) { return ::swapPop(this->data, &this->len, index); }
-};
-
 // FixedStack
 template <typename T, size_t N> struct FixedStack : Array<T, N> {
     static_assert(N > 0);
