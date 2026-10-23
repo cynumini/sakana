@@ -13,6 +13,7 @@
 #include "skn/types.cpp"
 
 typedef unsigned int uint;
+using namespace skn;
 
 #define KB(value) ((value) * 1024)
 #define MB(value) (KB(value) * 1024)
@@ -34,17 +35,17 @@ template <typename F> privDefer<F> defer_func(F f) { return privDefer<F>(f); }
 #define TODO(text) __builtin_debugtrap()
 
 // Slice
-template <typename T, bool zero = false> struct Slice {
+template <typename T, bool zero = false> struct OldSlice {
     size_t len;
     T *ptr;
 
-    Slice() : len(0), ptr(0) {}
+    OldSlice() : len(0), ptr(0) {}
 
-    Slice(size_t len, T *ptr) : len(len), ptr(ptr) {}
+    OldSlice(size_t len, T *ptr) : len(len), ptr(ptr) {}
 
-    Slice<const char>(const char *text) : len(strlen(text)), ptr(text) {}
+    OldSlice<const char>(const char *text) : len(strlen(text)), ptr(text) {}
 
-    Slice<const char>(const Slice<char> &slice) : len(slice.len), ptr(slice.ptr) {}
+    OldSlice<const char>(const OldSlice<char> &slice) : len(slice.len), ptr(slice.ptr) {}
 
     T &operator[](size_t index) {
         assert(index < len);
@@ -56,7 +57,7 @@ template <typename T, bool zero = false> struct Slice {
         return ptr[index];
     }
 
-    bool operator==(Slice other) const {
+    bool operator==(OldSlice other) const {
         if (len != other.len) return false;
         for (size_t i = 0; i < len; i++) {
             if (ptr[i] != other[i]) return false;
@@ -67,12 +68,12 @@ template <typename T, bool zero = false> struct Slice {
     T *begin() { return ptr; }
     T *end() { return ptr + len; }
 
-    Slice<T, false> withoutZero() {
+    OldSlice<T, false> withoutZero() {
         static_assert(zero);
         return {len, ptr};
     }
 
-    Slice<T, false> withZero() {
+    OldSlice<T, false> withZero() {
         static_assert(zero);
         return {len + 1, ptr};
     }
@@ -82,12 +83,12 @@ template <typename T, bool zero = false> struct Slice {
         qsort(ptr + offset, len - offset, sizeof(T), sortFn);
     }
 
-    static Slice<const char> fromStrZ(const char *str) { return {strlen(str), str}; }
+    static OldSlice<const char> fromStrZ(const char *str) { return {strlen(str), str}; }
 };
 
-template <typename T> using SliceZ = Slice<T, true>;
+template <typename T> using SliceZ = OldSlice<T, true>;
 
-static Slice<const char> getStem(const char *str_z) {
+static OldSlice<const char> getStem(const char *str_z) {
     ptrdiff_t len = strlen(str_z);
     assert(len > 0);
     for (ptrdiff_t i = len - 1; i >= 0; i--) {
@@ -97,7 +98,7 @@ static Slice<const char> getStem(const char *str_z) {
 }
 
 // Array
-template <typename T, size_t N> struct Array {
+template <typename T, size_t N> struct OldArray {
     T data[N];
 
     constexpr T &operator[](size_t index) {
@@ -140,12 +141,12 @@ template <typename T> T swapPop(T *data, size_t *len, size_t index) {
 }
 
 // Fixed
-template <typename T> struct Fixed : public Slice<T> {
+template <typename T> struct Fixed : public OldSlice<T> {
     size_t capacity;
 
-    static Fixed create(Slice<T> slice) { return {{0, slice.ptr}, slice.len}; }
+    static Fixed create(OldSlice<T> slice) { return {{0, slice.ptr}, slice.len}; }
 
-    void init(Slice<T> slice) {
+    void init(OldSlice<T> slice) {
         this->ptr = slice.ptr;
         this->len = 0;
         capacity = slice.len;
@@ -157,7 +158,7 @@ template <typename T> struct Fixed : public Slice<T> {
 };
 
 // FixedStack
-template <typename T, size_t N> struct FixedStack : Array<T, N> {
+template <typename T, size_t N> struct FixedStack : OldArray<T, N> {
     static_assert(N > 0);
     size_t len;
     size_t next;
@@ -221,7 +222,7 @@ struct Arena {
         }
     }
 
-    template <typename T> Slice<T> alloc(size_t len) {
+    template <typename T> OldSlice<T> alloc(size_t len) {
         if (len == 0) return {};
         const auto size = len * sizeof(T);
         auto mod = next_position % alignof(T);
@@ -229,7 +230,7 @@ struct Arena {
         checkCapacity(pos + size);
         positions.push(pos);
         next_position = pos + size;
-        return Slice<T>{len, (T *)(mem + pos)};
+        return OldSlice<T>{len, (T *)(mem + pos)};
     };
 
     template <typename T> SliceZ<T> allocZ(size_t len) {
@@ -238,7 +239,7 @@ struct Arena {
         return {len, slice.ptr};
     };
 
-    template <typename T> void free(Slice<T> slice) {
+    template <typename T> void free(OldSlice<T> slice) {
         if (slice.len == 0) return;
         const size_t pos = checkAndGetPosition((u8 *)slice.ptr);
         if (positions.len > 0 and pos == positions.peek()) next_position = positions.pop();
@@ -246,7 +247,7 @@ struct Arena {
 
     template <typename T> void free(SliceZ<T> slice_z) { free(slice_z.withZero()); }
 
-    template <typename T> Slice<T> realloc(Slice<T> slice, size_t new_len) {
+    template <typename T> OldSlice<T> realloc(OldSlice<T> slice, size_t new_len) {
         const auto new_size = new_len * sizeof(T);
         if (new_len == 0) {
             free(slice);
@@ -255,7 +256,7 @@ struct Arena {
         if (slice.len == 0) return alloc<T>(new_len);
         const size_t pos = checkAndGetPosition((u8 *)slice.ptr);
         if (positions.len == 0 or pos != positions.peek()) {
-            Slice<T> out_slice = alloc<T>(new_len);
+            OldSlice<T> out_slice = alloc<T>(new_len);
             memcpy(out_slice.ptr, slice.ptr, std::min(slice.len * sizeof(T), new_size));
             return out_slice;
         }
@@ -280,7 +281,7 @@ struct Arena {
     }
 
     // dupe z
-    SliceZ<char> dupeZ(Slice<const char> src) {
+    SliceZ<char> dupeZ(OldSlice<const char> src) {
         auto slice_z = allocZ<char>(src.len);
         memcpy(slice_z.ptr, src.ptr, src.len);
         return slice_z;
@@ -299,14 +300,14 @@ struct Arena {
     }
 
     // dupe const
-    Slice<const char> dupeConst(Slice<const char> src) {
+    OldSlice<const char> dupeConst(OldSlice<const char> src) {
         auto dst = alloc<char>(src.len);
         assert(dst.ptr != 0);
         memcpy(dst.ptr, src.ptr, src.len);
         return {dst.len, dst.ptr};
     }
 
-    Slice<const char> dupeConst(const char *src) { return dupeConst({strlen(src), src}); }
+    OldSlice<const char> dupeConst(const char *src) { return dupeConst({strlen(src), src}); }
 
     // dupe const z
     SliceZ<const char> dupeConstZ(const char *src) {
@@ -337,7 +338,7 @@ struct Arena {
         return slice;
     }
 
-    Slice<char> allocPrint(const char *fmt, ...) __attribute__((format(gnu_printf, 2, 3))) {
+    OldSlice<char> allocPrint(const char *fmt, ...) __attribute__((format(gnu_printf, 2, 3))) {
         va_list ap;
         va_start(ap, fmt);
         auto slice = vAllocPrintZ(fmt, ap);
@@ -364,7 +365,7 @@ struct ScopeArena {
 };
 
 // Dynamic
-template <typename T> struct Dynamic : public Slice<T> {
+template <typename T> struct Dynamic : public OldSlice<T> {
     size_t capacity;
 
     static Dynamic init(Arena *a, size_t initial_capacity) {
@@ -377,7 +378,7 @@ template <typename T> struct Dynamic : public Slice<T> {
     void append(Arena *a, T value) {
         if (this->len == capacity) {
             size_t new_capacity = capacity ? capacity * 2 : 1;
-            auto items = a->realloc(Slice<T>{capacity, this->ptr}, new_capacity);
+            auto items = a->realloc(OldSlice<T>{capacity, this->ptr}, new_capacity);
             capacity = items.len;
             this->ptr = items.ptr;
         }
@@ -392,7 +393,7 @@ template <typename T> struct Dynamic : public Slice<T> {
     void clear() { this->len = 0; }
 };
 
-inline size_t fnv1aHash(Slice<const char> string) {
+inline size_t fnv1aHash(OldSlice<const char> string) {
     constexpr size_t fnv_prime = 1099511628211ULL;
     constexpr size_t fnv_offset_basis = 14695981039346656037ULL;
 
@@ -408,15 +409,15 @@ inline size_t fnv1aHash(Slice<const char> string) {
 
 template <typename T> struct HashMap {
     struct Item {
-        Slice<const char> key;
+        OldSlice<const char> key;
         T value;
     };
 
-    Slice<Item> data;
+    OldSlice<Item> data;
 
     static HashMap<T> init(Arena *a, size_t len) { return {.data = a->alloc<Item>(len)}; }
 
-    static bool putInSlice(Slice<Item> slice, Slice<const char> key, T value) {
+    static bool putInSlice(OldSlice<Item> slice, OldSlice<const char> key, T value) {
         assert(key.len);
         if (slice.len == 0) return false;
         auto hash = fnv1aHash(key);
@@ -435,7 +436,7 @@ template <typename T> struct HashMap {
         return false;
     }
 
-    Item *getItem(Slice<const char> key) {
+    Item *getItem(OldSlice<const char> key) {
         assert(key.len);
         auto hash = fnv1aHash(key);
 
@@ -453,7 +454,7 @@ template <typename T> struct HashMap {
         return 0;
     }
 
-    T get(Slice<const char> key) {
+    T get(OldSlice<const char> key) {
         auto item = getItem(key);
         assert(item);
         return item->value;
@@ -461,7 +462,7 @@ template <typename T> struct HashMap {
 
     T get(const char *key) { return get({strlen(key), key}); }
 
-    void put(Arena *a, Slice<const char> key, T value) {
+    void put(Arena *a, OldSlice<const char> key, T value) {
         while (true) {
             if (putInSlice(data, key, value)) return;
             auto new_len = data.len ? data.len * 2 : 1;

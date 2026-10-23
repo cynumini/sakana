@@ -1,5 +1,6 @@
 #pragma once
 
+namespace skn {
 using usize = __SIZE_TYPE__;
 using isize = __PTRDIFF_TYPE__;
 
@@ -31,9 +32,6 @@ static constexpr i32 I32_MIN = -I32_MAX - 1;
 static constexpr i64 I64_MAX = __INT64_MAX__;
 static constexpr i64 I64_MIN = -I64_MAX - 1;
 
-static constexpr int INT_MAX = __INT_MAX__;
-static constexpr int INT_MIN = -INT_MAX - 1;
-
 static constexpr isize ISIZE_MAX = __PTRDIFF_MAX__;
 static constexpr isize ISIZE_MIN = -ISIZE_MAX - 1;
 
@@ -51,3 +49,4 @@ static constexpr u64 U64_MIN = 0;
 
 static constexpr usize USIZE_MAX = __SIZE_MAX__;
 static constexpr usize USIZE_MIN = 0;
+} // namespace skn

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "skn.cpp"
-#include "skn_math.cpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -89,7 +88,7 @@ struct Texture {
         return {w, h, ptr};
     }
 
-    static Texture load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, Slice<u8> data) {
+    static Texture load(SDL_GPUDevice *device, SDL_GPUCopyPass *copy_pass, OldSlice<u8> data) {
         int w, h;
         auto *src = SDL_IOFromConstMem(data.ptr, data.len);
         auto *ptr = IMG_LoadGPUTexture_IO(device, copy_pass, src, true, &w, &h);
