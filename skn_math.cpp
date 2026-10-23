@@ -3,7 +3,7 @@
 #include <cassert>
 #include <cmath>
 
-#include "skn_types.cpp"
+#include "skn/types.cpp"
 
 struct Vec2;
 struct Vec2i;
@@ -12,30 +12,30 @@ struct Vec3i;
 struct Vec4;
 
 struct Vec2 {
-    float x = 0;
-    float y = 0;
+    f32 x = 0;
+    f32 y = 0;
 
     constexpr Vec2() = default;
-    constexpr Vec2(float x, float y) : x(x), y(y) {}
+    constexpr Vec2(f32 x, f32 y) : x(x), y(y) {}
     constexpr Vec2(int x, int y) : x(x), y(y) {}
     constexpr Vec2(Vec2i v);
     constexpr Vec2(Vec3 v);
 
-    constexpr float &operator[](size_t i) {
+    constexpr f32 &operator[](size_t i) {
         assert(i < 2);
         return (&x)[i];
     }
 
-    constexpr const float &operator[](size_t i) const {
+    constexpr const f32 &operator[](size_t i) const {
         assert(i < 2);
         return (&x)[i];
     }
 
     constexpr Vec2 operator-() const { return {-x, -y}; }
 
-    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
-    constexpr Vec2 operator+(float other) const { return {x + other, y + other}; }
-    constexpr Vec2 operator/(float other) const { return {x / other, y / other}; }
+    constexpr Vec2 operator*(f32 other) const { return {x * other, y * other}; }
+    constexpr Vec2 operator+(f32 other) const { return {x + other, y + other}; }
+    constexpr Vec2 operator/(f32 other) const { return {x / other, y / other}; }
 
     constexpr Vec2 operator*(Vec2 other) const { return {x * other.x, y * other.y}; }
     constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
@@ -46,9 +46,9 @@ struct Vec2 {
         return *this;
     }
 
-    constexpr float dot(const Vec2 other) const { return (x * other.x) + (y * other.y); }
+    constexpr f32 dot(const Vec2 other) const { return (x * other.x) + (y * other.y); }
 
-    constexpr float length() const { return std::sqrt(x * x + y * y); };
+    constexpr f32 length() const { return std::sqrt(x * x + y * y); };
 
     constexpr Vec2 normalize() const {
         auto l = length();
@@ -56,9 +56,9 @@ struct Vec2 {
         return {x, y};
     };
 
-    constexpr Vec2 rotate(float rad) const {
-        float c = cos(rad);
-        float s = sin(rad);
+    constexpr Vec2 rotate(f32 rad) const {
+        f32 c = cos(rad);
+        f32 s = sin(rad);
         return {x * c - y * s, x * s + y * c};
     }
 };
@@ -70,7 +70,7 @@ struct Vec2i {
     constexpr Vec2i() = default;
     constexpr Vec2i(int x, int y) : x(x), y(y) {}
     constexpr Vec2i(uint x, uint y) : x(x), y(y) {}
-    constexpr Vec2i(float x, float y) : x(int(x)), y(int(y)) {}
+    constexpr Vec2i(f32 x, f32 y) : x(int(x)), y(int(y)) {}
     constexpr Vec2i(Vec2 v) : x(int(v.x)), y(int(v.y)) {}
 
     constexpr int &operator[](size_t i) {
@@ -91,7 +91,7 @@ struct Vec2i {
     constexpr Vec2i operator*(Vec2i other) const { return {x * other.x, y * other.y}; }
     constexpr Vec2i operator+(Vec2i other) const { return {x + other.x, y + other.y}; }
 
-    constexpr Vec2 operator*(float other) const { return {x * other, y * other}; }
+    constexpr Vec2 operator*(f32 other) const { return {x * other, y * other}; }
 
     constexpr Vec2 operator+(Vec2 other) const { return {x + other.x, y + other.y}; }
     constexpr Vec2 operator-(Vec2 other) const { return {x - other.x, y - other.y}; }
@@ -102,33 +102,33 @@ struct Vec2i {
 constexpr Vec2::Vec2(Vec2i v) : x(v.x), y(v.y) {}
 
 struct Vec3 {
-    float x;
-    float y;
-    float z;
+    f32 x;
+    f32 y;
+    f32 z;
 
     constexpr Vec3() : x(0), y(0), z(0) {}
-    constexpr Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
-    constexpr Vec3(Vec2 v, float z) : x(v.x), y(v.y), z(z) {}
+    constexpr Vec3(f32 x, f32 y, f32 z) : x(x), y(y), z(z) {}
+    constexpr Vec3(Vec2 v, f32 z) : x(v.x), y(v.y), z(z) {}
     constexpr Vec3(Vec3i v);
     constexpr Vec3(Vec4 v);
 
-    constexpr float &operator[](size_t i) {
+    constexpr f32 &operator[](size_t i) {
         assert(i < 3);
         return (&x)[i];
     }
 
-    constexpr const float &operator[](size_t i) const {
+    constexpr const f32 &operator[](size_t i) const {
         assert(i < 3);
         return (&x)[i];
     }
 
     constexpr Vec3 operator-() const { return {-x, -y, -z}; }
 
-    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
-    constexpr Vec3 operator+(float other) const { return {x + other, y + other, z + other}; }
-    constexpr Vec3 operator+(int other) const { return operator+(float(other)); }
-    constexpr Vec3 operator-(float other) const { return {x - other, y - other, z - other}; }
-    constexpr Vec3 operator-(int other) const { return operator-(float(other)); }
+    constexpr Vec3 operator*(f32 other) const { return {x * other, y * other, z * other}; }
+    constexpr Vec3 operator+(f32 other) const { return {x + other, y + other, z + other}; }
+    constexpr Vec3 operator+(int other) const { return operator+(f32(other)); }
+    constexpr Vec3 operator-(f32 other) const { return {x - other, y - other, z - other}; }
+    constexpr Vec3 operator-(int other) const { return operator-(f32(other)); }
 
     constexpr Vec3 operator/(Vec3 other) const { return {x / other.x, y / other.y, z / other.z}; }
     constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
@@ -151,13 +151,13 @@ struct Vec3 {
         return *this;
     }
 
-    constexpr Vec3 rotateZ(float rad) const {
-        const float c = cos(rad);
-        const float s = sin(rad);
+    constexpr Vec3 rotateZ(f32 rad) const {
+        const f32 c = cos(rad);
+        const f32 s = sin(rad);
         return {x * c - y * s, x * s + y * c, z};
     }
 
-    constexpr float length() const { return std::sqrt(x * x + y * y + z * z); }
+    constexpr f32 length() const { return std::sqrt(x * x + y * y + z * z); }
 
     constexpr Vec3 normalize() const {
         auto l = length();
@@ -200,44 +200,44 @@ struct Vec3i {
         return x == other.x and y == other.y and z == other.z;
     }
 
-    constexpr Vec3 operator*(float other) const { return {x * other, y * other, z * other}; }
+    constexpr Vec3 operator*(f32 other) const { return {x * other, y * other, z * other}; }
 
     constexpr Vec3 operator+(Vec3 other) const { return {x + other.x, y + other.y, z + other.z}; }
     constexpr Vec3 operator-(Vec3 other) const { return {x - other.x, y - other.y, z - other.z}; }
 };
 
-constexpr Vec3::Vec3(Vec3i v) : x(float(v.x)), y(float(v.y)), z(float(v.z)) {}
+constexpr Vec3::Vec3(Vec3i v) : x(f32(v.x)), y(f32(v.y)), z(f32(v.z)) {}
 
 struct Vec4 {
-    float x = 0;
-    float y = 0;
-    float z = 0;
-    float w = 0;
+    f32 x = 0;
+    f32 y = 0;
+    f32 z = 0;
+    f32 w = 0;
 
     constexpr Vec4() = default;
-    constexpr Vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {};
-    constexpr Vec4(Vec3 v, float w) : x(v.x), y(v.y), z(v.z), w(w) {};
+    constexpr Vec4(f32 x, f32 y, f32 z, f32 w) : x(x), y(y), z(z), w(w) {};
+    constexpr Vec4(Vec3 v, f32 w) : x(v.x), y(v.y), z(v.z), w(w) {};
 };
 
 constexpr Vec3::Vec3(Vec4 v) : x(v.x), y(v.y), z(v.z) {};
 
 struct Rect {
-    float x = 0;
-    float y = 0;
-    float w = 0;
-    float h = 0;
+    f32 x = 0;
+    f32 y = 0;
+    f32 w = 0;
+    f32 h = 0;
 
     constexpr Rect() = default;
 
-    constexpr Rect(float x, float y, float w, float h) : x(x), y(y), w(w), h(h) {}
+    constexpr Rect(f32 x, f32 y, f32 w, f32 h) : x(x), y(y), w(w), h(h) {}
 
     constexpr Rect(Vec2 pos, Vec2 size) : x(pos.x), y(pos.y), w(size.x), h(size.y) {}
 
-    constexpr Rect operator/(float value) const {
+    constexpr Rect operator/(f32 value) const {
         return {x / value, y / value, w / value, h / value};
     }
 
-    constexpr Rect &operator/=(float value) {
+    constexpr Rect &operator/=(f32 value) {
         x /= value;
         y /= value;
         w /= value;
@@ -250,12 +250,12 @@ struct Rect {
     constexpr Vec2 size() const { return {w, h}; }
 };
 
-static constexpr float deg2rad(float degrees) { return degrees * (M_PIf / 180.0F); }
+static constexpr f32 deg2rad(f32 degrees) { return degrees * (M_PIf / 180.0F); }
 
-static constexpr float rad2deg(float radians) { return radians * (180.0F / M_PIf); }
+static constexpr f32 rad2deg(f32 radians) { return radians * (180.0F / M_PIf); }
 
 struct Mat4 {
-    float m[4][4];
+    f32 m[4][4];
 
     constexpr Mat4 operator*(const Mat4 &other) const {
         Mat4 r = {};
@@ -286,11 +286,11 @@ struct Mat4 {
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    constexpr static Mat4 ortho(float left, float right, float bottom, float top, float near,
-                                float far) {
-        float rl = right - left;
-        float tb = top - bottom;
-        float fn = far - near;
+    constexpr static Mat4 ortho(f32 left, f32 right, f32 bottom, f32 top, f32 near,
+                                f32 far) {
+        f32 rl = right - left;
+        f32 tb = top - bottom;
+        f32 fn = far - near;
 
         return {{{2.0F / rl, 0.0F, 0.0F, -((right + left) / rl)},
                  {0.0F, 2.0F / tb, 0.0F, -((top + bottom) / tb)},
@@ -298,16 +298,16 @@ struct Mat4 {
                  {0.0F, 0.0F, 0.0F, 1.0F}}};
     }
 
-    constexpr static Vec4 unprojectOrtho(Vec3 ndc, float left, float right, float bottom,
-                                         float top, float near, float far) {
+    constexpr static Vec4 unprojectOrtho(Vec3 ndc, f32 left, f32 right, f32 bottom,
+                                         f32 top, f32 near, f32 far) {
         return {left + (ndc.x + 1.0F) * 0.5F * (right - left),
                 bottom + (ndc.y + 1.0F) * 0.5F * (top - bottom), near + ndc.z * (far - near), 1};
     }
 
     // Pitch
-    constexpr static Mat4 rotationX(float angle) {
-        float c = std::cos(angle);
-        float s = std::sin(angle);
+    constexpr static Mat4 rotationX(f32 angle) {
+        f32 c = std::cos(angle);
+        f32 s = std::sin(angle);
 
         return {{{1.0F, 0.0F, 0.0F, 0.0F},
                  {0.0F, c, s, 0.0F},
@@ -316,7 +316,7 @@ struct Mat4 {
     }
 
     constexpr static Mat4 iso45() {
-        constexpr float s = 0.7071067811865475F;
+        constexpr f32 s = 0.7071067811865475F;
 
         return {{{1.0F, 0.0F, 0.0F, 0.0F},
                  {0.0F, 1.0F, 1.0F, 0.0F},
@@ -325,7 +325,7 @@ struct Mat4 {
     }
 
     // constexpr static Mat4 inverseIso45() {
-    //     constexpr float s = 0.7071067811865475F;
+    //     constexpr f32 s = 0.7071067811865475F;
 
     //     return {{{1.0F, 0.0F, 0.0F, 0.0F},
     //              {0.0F, 0.5F, -s, 0.0F},
@@ -334,7 +334,7 @@ struct Mat4 {
     // }
 
     constexpr static Mat4 inverseIso45() {
-        constexpr float s = 0.7071067811865475F;
+        constexpr f32 s = 0.7071067811865475F;
 
         return {{{1.0F, 0.0F, 0.0F, 0.0F},
                  {0.0F, 0.5F, -s, 0.0F},
@@ -343,9 +343,9 @@ struct Mat4 {
     }
 
     // Roll
-    constexpr static Mat4 rotationY(float angle) {
-        float c = std::cos(angle);
-        float s = std::sin(angle);
+    constexpr static Mat4 rotationY(f32 angle) {
+        f32 c = std::cos(angle);
+        f32 s = std::sin(angle);
 
         return {{{c, 0.0F, -s, 0.0F},
                  {0.0F, 1.0F, 0.0F, 0.0F},
@@ -354,9 +354,9 @@ struct Mat4 {
     }
 
     // Yaw
-    constexpr static Mat4 rotationZ(float angle) {
-        float c = std::cos(angle);
-        float s = std::sin(angle);
+    constexpr static Mat4 rotationZ(f32 angle) {
+        f32 c = std::cos(angle);
+        f32 s = std::sin(angle);
 
         return {{{c, s, 0.0F, 0.0F},
                  {-s, c, 0.0F, 0.0F},
@@ -408,43 +408,43 @@ struct Points4 {
     Vec2 v[4];
 };
 
-static Points4 calcRectPoints(Rect rect, float angle) {
+static Points4 calcRectPoints(Rect rect, f32 angle) {
     auto half = Vec2{rect.w, rect.h} * 0.5F;
     // Vec2 center = rect.position() + half;
     Vec2 center = {rect.x, rect.y};
     Points4 points = {-half, {half.x, -half.y}, half, {-half.x, half.y}};
-    float c = std::cos(angle), s = std::sin(angle);
+    f32 c = std::cos(angle), s = std::sin(angle);
     for (size_t i = 0; i < 4; i++) {
-        float x = points.v[i].x;
-        float y = points.v[i].y;
+        f32 x = points.v[i].x;
+        f32 y = points.v[i].y;
         points.v[i] = Vec2{(x * c) - (y * s), (x * s) + (y * c)} + center;
     }
     return points;
 }
 
-template <typename T, size_t N> static float max(const T (&values)[N]) {
+template <typename T, size_t N> static f32 max(const T (&values)[N]) {
     static_assert(N > 0);
-    float best = values[0];
+    f32 best = values[0];
     for (const auto &value : values) best = value > best ? value : best;
     return best;
 }
 
 template <typename T, size_t N> static T min(const T (&values)[N]) {
     static_assert(N > 0);
-    float best = values[0];
+    f32 best = values[0];
     for (const auto &value : values) best = value < best ? value : best;
     return best;
 }
 
-static bool checkCollisionSAT(Rect a, float a_angle, Rect b, float b_angle) {
+static bool checkCollisionSAT(Rect a, f32 a_angle, Rect b, f32 b_angle) {
     auto a_points = calcRectPoints(a, a_angle);
     auto b_points = calcRectPoints(b, b_angle);
     const Vec2 axes[4] = {a_points.v[1] - a_points.v[0], a_points.v[2] - a_points.v[1],
                           b_points.v[1] - b_points.v[0], b_points.v[2] - b_points.v[1]};
     for (size_t i = 0; i < 4; i++) {
-        float a_values[4] = {a_points.v[0].dot(axes[i]), a_points.v[1].dot(axes[i]),
+        f32 a_values[4] = {a_points.v[0].dot(axes[i]), a_points.v[1].dot(axes[i]),
                              a_points.v[2].dot(axes[i]), a_points.v[3].dot(axes[i])};
-        float b_values[4] = {b_points.v[0].dot(axes[i]), b_points.v[1].dot(axes[i]),
+        f32 b_values[4] = {b_points.v[0].dot(axes[i]), b_points.v[1].dot(axes[i]),
                              b_points.v[2].dot(axes[i]), b_points.v[3].dot(axes[i])};
         if (max(a_values) < min(b_values) or max(b_values) < min(a_values)) return false;
     }

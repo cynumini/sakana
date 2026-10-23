@@ -10,7 +10,7 @@
 
 #include <sys/mman.h>
 
-#include "skn_types.cpp"
+#include "skn/types.cpp"
 
 typedef unsigned int uint;
 
@@ -99,20 +99,23 @@ static Slice<const char> getStem(const char *str_z) {
 // Array
 template <typename T, size_t N> struct Array {
     T data[N];
-    size_t len = N;
 
-    T &operator[](size_t index) {
-        assert(index < len);
+    constexpr T &operator[](size_t index) {
+        assert(index < len());
         return data[index];
     }
 
     const T &operator[](size_t index) const {
-        assert(index < len);
+        assert(index < len());
         return data[index];
     }
 
+    constexpr size_t len() const {
+        return N;
+    }
+
     T *begin() { return data; }
-    T *end() { return data + len; }
+    T *end() { return data + len(); }
 };
 
 #define ARRAY_LEN(array) (sizeof(array) / sizeof((array)[0]))
